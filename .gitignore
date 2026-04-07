@@ -1,5 +1,30 @@
 HELP.md
 target/
+
+### Postman / API client exports (local only) ###
+.postman/
+postman/
+*.postman_collection.json
+*.postman_environment.json
+*.postman_globals.json
+
+### Local env / secrets (do not commit) ###
+.env
+.env.*
+!.env.example
+
+### OS / editor noise ###
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+### Logs / temp ###
+*.log
+logs/
+tmp/
+temp/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
