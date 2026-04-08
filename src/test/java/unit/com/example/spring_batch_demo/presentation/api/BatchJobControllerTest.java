@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class BatchJobControllerTest {
@@ -36,5 +37,31 @@ class BatchJobControllerTest {
         ResponseEntity<String> response = controller.importCustomers(null);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
+    }
+
+    @Test
+    void importCustomersUsesProvidedInputFile() throws Exception {
+        CustomerImportUseCase importUseCase = mock(CustomerImportUseCase.class);
+        BatchJobController controller = new BatchJobController(importUseCase);
+        when(importUseCase.importCustomers("classpath:customers-01.csv"))
+                .thenReturn(new CustomerImportResult(103L, "COMPLETED", List.of()));
+
+        ResponseEntity<String> response = controller.importCustomers("classpath:customers-01.csv");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        verify(importUseCase).importCustomers("classpath:customers-01.csv");
+    }
+
+    @Test
+    void importCustomersUsesDefaultWhenInputFileIsBlank() throws Exception {
+        CustomerImportUseCase importUseCase = mock(CustomerImportUseCase.class);
+        BatchJobController controller = new BatchJobController(importUseCase);
+        when(importUseCase.importCustomers("classpath:customers.csv"))
+                .thenReturn(new CustomerImportResult(104L, "COMPLETED", List.of()));
+
+        ResponseEntity<String> response = controller.importCustomers("   ");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        verify(importUseCase).importCustomers("classpath:customers.csv");
     }
 }
