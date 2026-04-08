@@ -1,4 +1,4 @@
-package com.example.spring_batch_demo.diagnostics;
+package com.example.spring_batch_demo.infrastructure.diagnostics;
 
 import java.util.List;
 

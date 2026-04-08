@@ -153,9 +153,10 @@ ORDER BY JOB_EXECUTION_ID DESC;
 
 ### 7.1 Request → Job launch
 
-1. Postman hits `BatchJobController.importCustomers`
-2. Controller builds `JobParameters` (`inputFile`, `run.at`)
-3. Controller calls `JobLauncher.run(customerJob, params)`
+1. Postman hits `presentation.api.BatchJobController.importCustomers`
+2. Controller delegates to `application.customer.CustomerImportUseCase`
+3. Infrastructure implementation (`infrastructure.batch.SpringBatchCustomerImportUseCase`) builds `JobParameters` (`inputFile`, `run.at`)
+4. Infrastructure calls `JobLauncher.run(customerJob, params)`
 
 ### 7.2 Job → Step → chunk loop
 
@@ -168,12 +169,24 @@ ORDER BY JOB_EXECUTION_ID DESC;
 
 ### 7.3 Key code locations
 
-- API trigger: `.../controller/BatchJobController.java`
-- Job/Step wiring: `.../config/BatchConfig.java`
-- Reader: `.../reader/CustomerItemReader.java`
-- Processor: `.../processor/CustomerProcessor.java`
-- Writer: `.../config/WriterConfig.java`
-- Listener logs: `.../listener/JobCompletionListener.java`
+- Presentation (API): `.../presentation/api/BatchJobController.java`
+- Application use-case: `.../application/customer/CustomerImportUseCase.java`
+- Job/Step wiring: `.../infrastructure/batch/CustomerImportJobConfig.java`
+- Reader: `.../infrastructure/batch/CustomerCsvItemReaderConfig.java`
+- Processor adapter: `.../infrastructure/batch/CustomerItemProcessorAdapter.java`
+- Writer: `.../infrastructure/persistence/OracleCustomerWriterConfig.java`
+- Listener logs: `.../infrastructure/batch/JobCompletionListener.java`
+
+## 8) Architecture notes (Onion / ports & adapters)
+
+This codebase is being evolved toward **Onion Architecture** (dependencies pointing inward):
+
+- **Domain**: pure business rules (e.g. customer validation policies)
+- **Application**: orchestration/use-cases and ports (interfaces)
+- **Infrastructure**: Spring Batch + JDBC + file/CSV adapters (framework details)
+- **Presentation**: REST controller and API DTOs
+
+See `SD-ARCHITECTURE.md` for the target package structure and refactor plan, while keeping the current root package `com.example.spring_batch_demo`.
 
 ## 8) Troubleshooting
 
