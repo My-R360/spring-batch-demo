@@ -43,7 +43,7 @@ public class BatchJobController {
                 + " status=" + result.status()
                 + (result.failures().isEmpty() ? "" : " failures=" + String.join(" | ", result.failures()));
 
-        if (!result.failures().isEmpty() && "FAILED".equalsIgnoreCase(result.status())) {
+        if ("FAILED".equalsIgnoreCase(result.status())) {
             log.error("Import job failed. {}", message);
             return ResponseEntity.internalServerError().body(message);
         }
