@@ -5,7 +5,6 @@ import java.util.List;
 
 import com.example.spring_batch_demo.application.customer.CustomerImportResult;
 import com.example.spring_batch_demo.application.customer.CustomerImportUseCase;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
@@ -17,13 +16,18 @@ import org.springframework.stereotype.Service;
 
 @Service
 @Slf4j
-@RequiredArgsConstructor
 public class SpringBatchCustomerImportUseCase implements CustomerImportUseCase {
 
     private final JobLauncher jobLauncher;
-
-    @Qualifier("customerJob")
     private final Job customerJob;
+    
+    public SpringBatchCustomerImportUseCase(
+            JobLauncher jobLauncher,
+            @Qualifier("customerJob") Job customerJob
+    ) {
+        this.jobLauncher = jobLauncher;
+        this.customerJob = customerJob;
+    }
 
     @Override
     public CustomerImportResult importCustomers(String inputFile) throws Exception {
