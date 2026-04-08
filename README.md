@@ -52,19 +52,31 @@ curl -X POST "http://localhost:8080/api/batch/customer/import?inputFile=file:/Us
 
 ## Project structure (high level)
 
-- **API trigger**: `src/main/java/com/example/spring_batch_demo/controller/BatchJobController.java`
-- **Job/Step wiring**: `src/main/java/com/example/spring_batch_demo/config/BatchConfig.java`
-- **Reader (CSV)**: `src/main/java/com/example/spring_batch_demo/reader/CustomerItemReader.java`
-- **Processor (validate/transform)**: `src/main/java/com/example/spring_batch_demo/processor/CustomerProcessor.java`
-- **Writer (Oracle MERGE)**: `src/main/java/com/example/spring_batch_demo/config/WriterConfig.java`
-- **Job listener logs**: `src/main/java/com/example/spring_batch_demo/listener/JobCompletionListener.java`
-- **Dev DB diagnostics**: `src/main/java/com/example/spring_batch_demo/diagnostics/DevStartupDiagnostics.java`
+- **Presentation (API)**: `src/main/java/com/example/spring_batch_demo/presentation/api/BatchJobController.java`
+- **Application (use-case)**:
+  - `src/main/java/com/example/spring_batch_demo/application/customer/CustomerImportUseCase.java`
+  - `src/main/java/com/example/spring_batch_demo/application/customer/CustomerImportResult.java`
+- **Domain (model + policy)**:
+  - `src/main/java/com/example/spring_batch_demo/domain/customer/Customer.java`
+  - `src/main/java/com/example/spring_batch_demo/domain/customer/CustomerImportPolicy.java`
+- **Infrastructure (Spring Batch + JDBC)**:
+  - Job/step wiring: `src/main/java/com/example/spring_batch_demo/infrastructure/batch/CustomerImportJobConfig.java`
+  - Reader (CSV): `src/main/java/com/example/spring_batch_demo/infrastructure/batch/CustomerCsvItemReaderConfig.java`
+  - Processor adapter: `src/main/java/com/example/spring_batch_demo/infrastructure/batch/CustomerItemProcessorAdapter.java`
+  - Writer (Oracle MERGE): `src/main/java/com/example/spring_batch_demo/infrastructure/persistence/OracleCustomerWriterConfig.java`
+  - Listener logs: `src/main/java/com/example/spring_batch_demo/infrastructure/batch/JobCompletionListener.java`
+  - Dev DB diagnostics: `src/main/java/com/example/spring_batch_demo/infrastructure/diagnostics/DevStartupDiagnostics.java`
 - **Schema init**: `src/main/resources/schema.sql`
 - **Sample CSVs**: `src/main/resources/customers.csv`, `src/main/resources/customers-01.csv`
 
 ## Batch flow (conceptual)
 
-HTTP POST → Controller → `JobLauncher.run(job, params)` → Job → Step (chunk loop) → Reader → Processor → Writer → Oracle.
+HTTP POST → Presentation Controller → Application UseCase → Infrastructure (Spring Batch JobLauncher) → Job → Step → Reader → Processor → Writer → Oracle.
+
+## Architecture & design docs
+
+- **Design patterns & SOLID**: `SD-DESIGN.md`
+- **Architecture (Onion) & target structure**: `SD-ARCHITECTURE.md`
 
 See `RUNBOOK.md` for a detailed, step-by-step explanation and troubleshooting tips.
 

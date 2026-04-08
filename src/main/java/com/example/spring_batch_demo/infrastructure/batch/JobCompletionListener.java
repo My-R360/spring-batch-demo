@@ -1,16 +1,14 @@
-package com.example.spring_batch_demo.listener;
+package com.example.spring_batch_demo.infrastructure.batch;
 
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionListener;
 import org.springframework.stereotype.Component;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 
 @Component
+@Slf4j
 public class JobCompletionListener implements JobExecutionListener {
-
-    private static final Logger log = LoggerFactory.getLogger(JobCompletionListener.class);
 
     @Override
     public void beforeJob(JobExecution jobExecution) {

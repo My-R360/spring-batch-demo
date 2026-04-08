@@ -6,6 +6,17 @@
 
 Spring Batch demo application (Java 21 / Spring Boot 3.2.5) that reads customer CSV data, validates emails, uppercases names, and writes to an Oracle database. The batch job is triggered on-demand via `POST /api/batch/customer/import`.
 
+### Architecture direction (important)
+
+This project is being refactored toward **Onion Architecture** while keeping the root package:
+
+- Root package: `com.example.spring_batch_demo`
+- Target layering: domain → application → infrastructure → presentation (dependencies inwards)
+
+If you are making changes:
+- Avoid introducing Spring/JDBC/Batch types into domain/application layers.
+- Keep Batch wiring (Job/Step/Reader/Writer) in infrastructure.
+
 ### Prerequisites
 
 - **Java 21** — pre-installed in the cloud environment.
