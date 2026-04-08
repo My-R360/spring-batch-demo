@@ -122,6 +122,17 @@ This file tracks what was requested in chat and what was changed in the project,
   - Added maintenance guidance at top.
 - **Outcome**: Prompt-to-change traceability is now documented in-repo.
 
+### 14) Add Cursor project rules and skill
+- **Prompt summary**: Create reusable Cursor rules and skills tailored to this project for future development.
+- **Changes done**:
+  - Added project rules under `.cursor/rules/`:
+    - `onion-architecture.mdc`
+    - `spring-batch-conventions.mdc`
+    - `docs-and-prompt-log.mdc`
+  - Added project skill under `.cursor/skills/`:
+    - `spring-batch-onion-workflow/SKILL.md`
+- **Outcome**: Future Cursor sessions can auto-apply project-specific architecture and workflow guidance.
+
 ---
 
 ## Later backlog (requested but deferred)
