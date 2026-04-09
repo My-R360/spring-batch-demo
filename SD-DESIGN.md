@@ -1,93 +1,78 @@
 # SD: Design (Patterns + SOLID)
 
-This document explains the main design patterns and SOLID principles used in this project, and where they show up in the code.
+This document explains key design choices and where they appear in the current onion-architecture implementation.
 
 ## SOLID principles
 
 ### Single Responsibility Principle (SRP)
 
-- **`BatchJobController`**: responsible only for accepting an HTTP request, building `JobParameters`, and launching the job.
-  - File: `src/main/java/com/example/spring_batch_demo/controller/BatchJobController.java`
-- **`CustomerItemReader`**: responsible for converting an `inputFile` string parameter into a Spring `Resource` and building a CSV reader.
-  - File: `src/main/java/com/example/spring_batch_demo/reader/CustomerItemReader.java`
-- **`CustomerProcessor` + `EmailValidationStrategy`**: responsible for validation and transformation (filter invalid emails; uppercase name).
-  - Files:
-    - `src/main/java/com/example/spring_batch_demo/processor/CustomerProcessor.java`
-    - `src/main/java/com/example/spring_batch_demo/processor/EmailValidationStrategy.java`
-- **`WriterConfig`**: responsible for persistence mechanics (Oracle SQL `MERGE` upsert via JDBC batch writer).
-  - File: `src/main/java/com/example/spring_batch_demo/config/WriterConfig.java`
+- `BatchJobController` handles HTTP request/response and delegates work.
+  - `src/main/java/com/example/spring_batch_demo/presentation/api/BatchJobController.java`
+- `CustomerCsvItemReaderConfig` builds and configures the CSV reader bean.
+  - `src/main/java/com/example/spring_batch_demo/infrastructure/batch/CustomerCsvItemReaderConfig.java`
+- `CustomerItemProcessorAdapter` only bridges Batch processor SPI to domain policy.
+  - `src/main/java/com/example/spring_batch_demo/infrastructure/batch/CustomerItemProcessorAdapter.java`
+- `EmailAndNameCustomerImportPolicy` contains business rule logic (email validity + uppercase name).
+  - `src/main/java/com/example/spring_batch_demo/domain/customer/EmailAndNameCustomerImportPolicy.java`
+- `OracleCustomerUpsertPortAdapter` contains Oracle/JDBC persistence logic only.
+  - `src/main/java/com/example/spring_batch_demo/infrastructure/persistence/OracleCustomerUpsertPortAdapter.java`
 
 ### Open/Closed Principle (OCP)
 
-- Validation is modeled as a **strategy** (`ValidationStrategy`) so you can add new validation logic without changing `CustomerProcessor` logic beyond selecting a different strategy.
-  - File: `src/main/java/com/example/spring_batch_demo/processor/ValidationStrategy.java`
+- Business rule is behind `CustomerImportPolicy`; new policies can be added without changing batch adapter flow.
+  - `src/main/java/com/example/spring_batch_demo/domain/customer/CustomerImportPolicy.java`
 
 ### Liskov Substitution Principle (LSP)
 
-- Any `ValidationStrategy` implementation must obey the contract: `isValid(customer)` returns `true` for valid records and `false` for invalid ones.
-  - This ensures `CustomerProcessor` can use any strategy interchangeably.
+- Any `CustomerImportPolicy` implementation can replace another if it honors contract: return transformed `Customer` or `null` to filter.
+- Any `CustomerUpsertPort` implementation can replace Oracle adapter while keeping application layer unchanged.
 
 ### Interface Segregation Principle (ISP)
 
-- `ValidationStrategy` is intentionally small and focused: one method, one responsibility.
+- `CustomerImportPolicy` has a single focused method.
+- `CustomerUpsertPort` has a single focused responsibility for upsert operations.
 
 ### Dependency Inversion Principle (DIP)
 
-- The project is being evolved toward onion layering where higher-level “policy” code should not depend on framework details.
-- Today, strategy interfaces already help decouple the processor from the specific validation implementation.
+- Application layer depends on `CustomerUpsertPort` abstraction, not JDBC implementation.
+- Infrastructure provides adapter implementation of that port.
 
 ## Design patterns
 
 ### Strategy
 
-Used for validation behavior.
+- Interface: `CustomerImportPolicy`
+- Concrete strategy: `EmailAndNameCustomerImportPolicy`
+- Context: `CustomerItemProcessorAdapter`
 
-- **Strategy interface**: `ValidationStrategy`
-- **Concrete strategy**: `EmailValidationStrategy`
-- **Context**: `CustomerProcessor` delegates validation via `ValidationStrategy`
+### Adapter
 
-Files:
-- `src/main/java/com/example/spring_batch_demo/processor/ValidationStrategy.java`
-- `src/main/java/com/example/spring_batch_demo/processor/EmailValidationStrategy.java`
-- `src/main/java/com/example/spring_batch_demo/processor/CustomerProcessor.java`
+- `CustomerItemProcessorAdapter`: domain policy -> `ItemProcessor` SPI
+- `CustomerUpsertItemWriterAdapter`: port -> `ItemWriter` SPI
+- `OracleCustomerUpsertPortAdapter`: `CustomerUpsertPort` -> Oracle JDBC
 
-### Adapter (framework integration)
+### Template Method (Spring Batch)
 
-Spring Batch itself is a ports/adapters-style framework: you implement its SPI interfaces and it calls you.
+- Framework controls chunk algorithm: read -> process -> write.
+- Project provides reader/processor/writer implementations.
 
-Examples:
-- `CustomerProcessor` adapts your validation/transformation logic to the `ItemProcessor` SPI.
-- `JdbcBatchItemWriter` adapts persistence SQL to the `ItemWriter` SPI (configured in `WriterConfig`).
+### Builder
 
-### Template Method (framework-provided)
-
-Chunk-oriented step execution is a classic template method:
-
-- Spring Batch controls the algorithm: read → process → write in chunks.
-- You provide the steps of the algorithm via `ItemReader`, `ItemProcessor`, and `ItemWriter`.
-
-### Builder (framework-provided)
-
-Builders are used to create configuration objects fluently:
-- `JobBuilder` / `StepBuilder` (Job/Step wiring)
-- `FlatFileItemReaderBuilder` (CSV reader)
-- `JdbcBatchItemWriterBuilder` (JDBC writer)
+- `JobBuilder` and `StepBuilder` for job/step wiring.
+- `FlatFileItemReaderBuilder` for CSV reader creation.
 
 ### Observer/Listener
 
-`JobExecutionListener` is a listener hook for cross-cutting concerns (logging).
-- File: `src/main/java/com/example/spring_batch_demo/listener/JobCompletionListener.java`
+- `JobCompletionListener` logs before/after job lifecycle events.
+  - `src/main/java/com/example/spring_batch_demo/infrastructure/batch/JobCompletionListener.java`
 
-## Persistence behavior notes
+## Persistence notes
 
-### Upsert to avoid duplicate key failures
+- Oracle upsert uses `MERGE`, so reruns update existing IDs instead of failing with ORA-00001.
+  - `src/main/java/com/example/spring_batch_demo/infrastructure/persistence/OracleCustomerUpsertPortAdapter.java`
 
-The writer uses Oracle `MERGE` so repeated imports of the same IDs update existing rows instead of failing with ORA-00001.
+## Diagnostics
 
-- File: `src/main/java/com/example/spring_batch_demo/config/WriterConfig.java`
-
-## Logging/diagnostics
-
-- `DevStartupDiagnostics` logs the connected Oracle user and table visibility when the `dev` profile is active.
-  - File: `src/main/java/com/example/spring_batch_demo/diagnostics/DevStartupDiagnostics.java`
+- `DevStartupDiagnostics` reports DB user and table visibility in `dev`.
+  - `src/main/java/com/example/spring_batch_demo/infrastructure/diagnostics/DevStartupDiagnostics.java`
 

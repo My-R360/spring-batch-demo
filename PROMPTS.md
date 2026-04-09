@@ -133,6 +133,45 @@ This file tracks what was requested in chat and what was changed in the project,
     - `spring-batch-onion-workflow/SKILL.md`
 - **Outcome**: Future Cursor sessions can auto-apply project-specific architecture and workflow guidance.
 
+### 15) Reorganize tests into unit/integration folders
+- **Prompt summary**: Rearrange test files into separate folders for unit tests and integration tests; verify build/run.
+- **Changes done**:
+  - Moved tests under:
+    - `src/test/java/unit/...`
+    - `src/test/java/integration/...`
+  - Kept package names unchanged so code references and test discovery still work.
+  - Re-ran build and startup smoke checks.
+- **Outcome**: Clearer test organization with successful build verification.
+
+### 16) Fix `mvn clean install -U` failures on Java 25
+- **Prompt summary**: Build failing with Mockito/Byte Buddy errors; fix and verify.
+- **Changes done**:
+  - Investigated runtime evidence showing `mvn` used Java 25.
+  - Added test resource override:
+    - `src/test/resources/mockito-extensions/org.mockito.plugins.MockMaker`
+    - content: `mock-maker-subclass`
+  - Updated `SpringBatchDemoApplicationMainTest` to avoid static Mockito mocking (unsupported with subclass mock maker).
+  - Added then removed temporary debug instrumentation after verification.
+- **Outcome**: `mvn clean install -U` stabilized; test suite passes under Java 25 too.
+
+### 17) Set Java 21 as global default
+- **Prompt summary**: Configure system so Java 21 is used by default without manual export before each build.
+- **Changes done**:
+  - Updated `~/.bash_profile` (user shell config) to set:
+    - `JAVA_HOME=$(/usr/libexec/java_home -v 21)`
+    - `PATH` preferring Java 21 binary path.
+  - Verified `java -version` and `mvn -v` report Java 21 in fresh bash login shell.
+- **Outcome**: New Bash sessions default to Java 21 automatically.
+
+### 18) Documentation alignment refresh
+- **Prompt summary**: Check if markdown docs are fully updated and refresh stale ones.
+- **Changes done**:
+  - Updated `SD-DESIGN.md` with current onion-layer classes and actual file paths.
+  - Updated `AGENTS.md` gotchas to reflect H2-backed test profile and 8080 port caveat.
+  - Replaced stale Spring Initializr boilerplate in `HELP.md` with project-specific quick help.
+  - Added these recent updates to this prompt log.
+- **Outcome**: Markdown docs align with current implementation and recent fixes.
+
 ---
 
 ## Later backlog (requested but deferred)

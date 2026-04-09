@@ -2,7 +2,7 @@
 
 ## 1) Prerequisites
 
-- Java 21+
+- **Java 21** (set `JAVA_HOME` to Java 21 — avoid running with Java 25+ as Byte Buddy/Mockito compatibility issues may surface)
 - Docker
 - (Optional) IntelliJ Database tool window / SQL client
 
@@ -177,7 +177,51 @@ ORDER BY JOB_EXECUTION_ID DESC;
 - Writer: `.../infrastructure/persistence/OracleCustomerWriterConfig.java`
 - Listener logs: `.../infrastructure/batch/JobCompletionListener.java`
 
-## 8) Architecture notes (Onion / ports & adapters)
+## 8) Tests
+
+Tests are organized under `src/test/java/` with two top-level directories:
+
+```
+src/test/java/
+├── unit/          ← fast, isolated (JUnit 5 + Mockito, no Spring context)
+│   └── com/example/spring_batch_demo/
+│       ├── SpringBatchDemoApplicationMainTest.java
+│       ├── application/customer/
+│       ├── domain/customer/
+│       ├── infrastructure/batch/
+│       ├── infrastructure/config/
+│       ├── infrastructure/diagnostics/
+│       ├── infrastructure/persistence/
+│       └── presentation/api/BatchJobControllerTest.java
+└── integration/   ← Spring-backed (@SpringBootTest, @WebMvcTest)
+    └── com/example/spring_batch_demo/
+        ├── SpringBatchDemoApplicationTests.java
+        └── presentation/api/BatchJobControllerWebMvcIntegrationTest.java
+```
+
+### 8.1 Running tests
+
+```bash
+./mvnw clean test          # all tests
+./mvnw clean install       # compile + test + package
+./mvnw clean install -U    # same, force-update snapshots
+```
+
+### 8.2 Test database
+
+Tests use **H2 in-memory** (Oracle-compat mode) — no running Oracle instance required.
+
+Configuration: `src/test/resources/application-test.properties`
+
+### 8.3 Mockito mock maker
+
+The project forces the **subclass** mock maker via `src/test/resources/mockito-extensions/org.mockito.plugins.MockMaker` (content: `mock-maker-subclass`). This avoids Byte Buddy `IllegalArgumentException` on JVMs newer than what the current Byte Buddy release supports. Trade-off: `mockStatic` is unavailable with the subclass mock maker.
+
+### 8.4 Code coverage
+
+JaCoCo is configured in `pom.xml`. After `mvn test`, reports are generated at `target/site/jacoco/index.html`.
+
+## 9) Architecture notes (Onion / ports & adapters)
 
 This codebase is being evolved toward **Onion Architecture** (dependencies pointing inward):
 
@@ -188,16 +232,20 @@ This codebase is being evolved toward **Onion Architecture** (dependencies point
 
 See `SD-ARCHITECTURE.md` for the target package structure and refactor plan, while keeping the current root package `com.example.spring_batch_demo`.
 
-## 8) Troubleshooting
+## 10) Troubleshooting
 
-### “200 OK but no rows inserted”
+### "200 OK but no rows inserted"
 - Check the API response: it returns **500** on job failure (with reason).
 - Check app logs for `JOB FINISHED ... status=...`.
 
-### “No CUSTOMER table”
+### "No CUSTOMER table"
 - Make sure you are connected to **service `XEPDB1`** (PDB) as `batch_user`.
 - If you query as SYS/SYSTEM, `user_tables` shows tables for SYS/SYSTEM only.
 
 ### Duplicate key errors (ORA-00001)
 - This project uses `MERGE` now, so reruns should not fail on duplicate IDs.
 
+### `mvn clean install` fails with Byte Buddy / Mockito errors
+- Ensure you are running with **Java 21** (`java -version`). Java 25+ triggers Byte Buddy incompatibilities.
+- The subclass mock maker (`src/test/resources/mockito-extensions/org.mockito.plugins.MockMaker`) should already be in place.
+- If using Java 25+, Mockito `5.23.0` with `mock-maker-subclass` is required (already configured in `pom.xml`).
