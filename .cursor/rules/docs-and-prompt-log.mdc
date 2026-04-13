@@ -1,0 +1,13 @@
+---
+description: Keep project docs and PROMPTS timeline updated
+alwaysApply: true
+---
+
+# Documentation Update Rule
+
+- When behavior, architecture, or setup changes:
+  - update `README.md` (quick usage)
+  - update `RUNBOOK.md` (operational steps/troubleshooting)
+  - update `SD-DESIGN.md` / `SD-ARCHITECTURE.md` when design/architecture changes
+- Append a new entry to `PROMPTS.md` for meaningful user requests and resulting changes.
+- Keep entries chronological and concise.

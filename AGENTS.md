@@ -43,6 +43,7 @@ The `dev` profile auto-creates the `CUSTOMER` table and Spring Batch metadata ta
 
 ### Gotchas
 
-- The `contextLoads` test in `SpringBatchDemoApplicationTests` requires a live Oracle connection (no embedded/H2 fallback), so Oracle XE must be running before `./mvnw test`.
+- Tests use `src/test/resources/application-test.properties` with embedded H2 (`MODE=Oracle`), so Oracle is not required for `./mvnw test`.
+- Running app startup tests can fail if port 8080 is already in use by another process.
 - The Docker daemon must be started manually (`sudo dockerd &`) in cloud environments; it is not auto-started.
 - Oracle XE takes ~30-60 seconds to initialize on first container start; poll `docker logs oracle-xe` for `DATABASE IS READY TO USE`.

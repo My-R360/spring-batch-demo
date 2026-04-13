@@ -1,0 +1,36 @@
+---
+description: Use code-review-graph for dependency and architecture insights
+alwaysApply: true
+---
+
+# Code review graph (structural context)
+
+This repo maintains a Tree-sitter–backed knowledge graph under `.code-review-graph/` (notably `graph.db`). Use it when planning or reviewing **non-trivial code or architectural changes**.
+
+## What to do
+
+- **Before or while changing** layers, ports, batch jobs, or shared types: consider **callers, dependents, imports, and blast radius**—not only the files in the immediate diff.
+- If **MCP / `code-review-graph` tools** are configured in the environment, prefer them for impact queries and minimal context.
+- If not, still apply the same mindset: map **who depends on what** (e.g. application ports, infrastructure adapters, job configs) and call out **risky coupling** or **missing tests** where relevant.
+- After **large** structural edits, suggest refreshing the graph (see below) so the stored model matches the tree.
+
+## After changes are done (closing step)
+
+When a task touches source, config, or architecture and the work is **finished** (including **`./mvnw` build / tests** or equivalent), run the knowledge graph refresh **from the repo root** as a final step:
+
+```bash
+code-review-graph update --repo .
+```
+
+- Use the project’s **`code-review-graph`** (e.g. venv: `code-review-graph/.venv/bin/code-review-graph`) if the command is not on `PATH`.
+- Prefer **`update`** for normal edits; use **`code-review-graph build --repo .`** only when a full re-parse is needed (large moves, graph looks wrong, or first-time setup).
+- Optional: regenerate the viewer after meaningful structural change: **`code-review-graph visualize --repo .`**.
+
+## Graph freshness (background)
+
+- Updates are **not automatic** by default. Optional: **`code-review-graph watch`**, or **`code-review-graph install`** for hooks/MCP where supported.
+
+## Do not
+
+- Replace domain reasoning with the graph alone; it approximates structure and may miss dynamic or framework-only wiring.
+- Assume the HTML visualization is the source of truth; **`graph.db`** drives queries and tools.

@@ -9,6 +9,12 @@ This project imports customers from a CSV file into an Oracle database using **S
 - Uppercases customer names
 - Writes to Oracle table `CUSTOMER` using an **upsert** (`MERGE`) so reruns do not fail on duplicate IDs
 
+## Prerequisites
+
+- **Java 21** (exactly — set `JAVA_HOME` to Java 21; see RUNBOOK § 1)
+- Docker (for Oracle XE)
+- Maven Wrapper included (`./mvnw`)
+
 ## Quick start
 
 ### 1) Start Oracle in Docker
@@ -17,7 +23,7 @@ This project imports customers from a CSV file into an Oracle database using **S
 docker ps | grep oracle-db || true
 ```
 
-If you don’t have it running yet, see `RUNBOOK.md`.
+If you don't have it running yet, see `RUNBOOK.md`.
 
 ### 2) Run the app (dev profile recommended)
 
@@ -52,22 +58,44 @@ curl -X POST "http://localhost:8080/api/batch/customer/import?inputFile=file:/Us
 
 ## Project structure (high level)
 
-- **Presentation (API)**: `src/main/java/com/example/spring_batch_demo/presentation/api/BatchJobController.java`
+- **Presentation (API)**: `.../presentation/api/BatchJobController.java`
 - **Application (use-case)**:
-  - `src/main/java/com/example/spring_batch_demo/application/customer/CustomerImportUseCase.java`
-  - `src/main/java/com/example/spring_batch_demo/application/customer/CustomerImportResult.java`
+  - `.../application/customer/CustomerImportUseCase.java`
+  - `.../application/customer/CustomerImportResult.java`
 - **Domain (model + policy)**:
-  - `src/main/java/com/example/spring_batch_demo/domain/customer/Customer.java`
-  - `src/main/java/com/example/spring_batch_demo/domain/customer/CustomerImportPolicy.java`
+  - `.../domain/customer/Customer.java`
+  - `.../domain/customer/CustomerImportPolicy.java`
 - **Infrastructure (Spring Batch + JDBC)**:
-  - Job/step wiring: `src/main/java/com/example/spring_batch_demo/infrastructure/batch/CustomerImportJobConfig.java`
-  - Reader (CSV): `src/main/java/com/example/spring_batch_demo/infrastructure/batch/CustomerCsvItemReaderConfig.java`
-  - Processor adapter: `src/main/java/com/example/spring_batch_demo/infrastructure/batch/CustomerItemProcessorAdapter.java`
-  - Writer (Oracle MERGE): `src/main/java/com/example/spring_batch_demo/infrastructure/persistence/OracleCustomerWriterConfig.java`
-  - Listener logs: `src/main/java/com/example/spring_batch_demo/infrastructure/batch/JobCompletionListener.java`
-  - Dev DB diagnostics: `src/main/java/com/example/spring_batch_demo/infrastructure/diagnostics/DevStartupDiagnostics.java`
+  - Job/step wiring: `.../infrastructure/batch/CustomerImportJobConfig.java`
+  - Reader (CSV): `.../infrastructure/batch/CustomerCsvItemReaderConfig.java`
+  - Processor adapter: `.../infrastructure/batch/CustomerItemProcessorAdapter.java`
+  - Writer (Oracle MERGE): `.../infrastructure/persistence/OracleCustomerWriterConfig.java`
+  - Listener logs: `.../infrastructure/batch/JobCompletionListener.java`
+  - Dev DB diagnostics: `.../infrastructure/diagnostics/DevStartupDiagnostics.java`
 - **Schema init**: `src/main/resources/schema.sql`
 - **Sample CSVs**: `src/main/resources/customers.csv`, `src/main/resources/customers-01.csv`
+
+## Tests
+
+Tests live under `src/test/java/` and are split into two root folders:
+
+| Folder | Purpose | Runner |
+|--------|---------|--------|
+| `unit/` | Fast, isolated tests using JUnit 5 + Mockito (no Spring context) | Plain JUnit |
+| `integration/` | Tests that boot (part of) the Spring context (`@SpringBootTest`, `@WebMvcTest`) backed by an in-memory H2 database | Spring Test |
+
+Run everything:
+
+```bash
+./mvnw clean test
+```
+
+Key test-infrastructure files:
+
+- `src/test/resources/application-test.properties` — H2 in-memory datasource (Oracle-compat mode), auto-init off
+- `src/test/resources/mockito-extensions/org.mockito.plugins.MockMaker` — forces **subclass** mock maker (avoids Byte Buddy issues on newer JVMs)
+
+> **No live Oracle is needed to run tests.** Integration tests use H2 with `MODE=Oracle`.
 
 ## Batch flow (conceptual)
 
@@ -79,4 +107,3 @@ HTTP POST → Presentation Controller → Application UseCase → Infrastructure
 - **Architecture (Onion) & target structure**: `SD-ARCHITECTURE.md`
 
 See `RUNBOOK.md` for a detailed, step-by-step explanation and troubleshooting tips.
-

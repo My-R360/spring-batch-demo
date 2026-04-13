@@ -1,0 +1,22 @@
+---
+description: Spring Batch conventions for customer import pipeline
+globs: src/main/java/com/example/spring_batch_demo/**/*.java
+alwaysApply: false
+---
+
+# Spring Batch Conventions
+
+- Keep batch internals in `infrastructure.batch`:
+  - Job/Step config
+  - Reader/Processor/Writer adapters
+  - Job listeners
+- Preserve stable job and step names unless migration is intentional.
+- Use `inputFile` as job parameter for source selection.
+- Handle reruns safely (idempotent write strategy, currently Oracle MERGE via port adapter).
+- Return clear result payloads from API (execution id, status, failure summary).
+
+## Error handling and logs
+
+- Log launch parameters and job result status.
+- Surface failures to caller with useful message.
+- Keep diagnostics profile-specific (`dev`) for startup DB checks.
