@@ -405,6 +405,20 @@ These can be done alongside any phase:
 
 ---
 
+### 19) Convert Customer to Java record
+
+- **Prompt summary**: Use Java records at all places in the project wherever appropriate, before starting Phase 1.
+- **Changes done**:
+  - Converted `Customer.java` from Lombok `@Data`/`@NoArgsConstructor`/`@AllArgsConstructor` to a Java `record`.
+  - Updated `EmailAndNameCustomerImportPolicy` to return a new `Customer` instance instead of mutating via setters (immutable-friendly).
+  - Replaced `targetType(Customer.class)` in `CustomerCsvItemReaderConfig` with a custom `FieldSetMapper` (records have no setters for `BeanWrapperFieldSetMapper`).
+  - Updated `OracleCustomerUpsertPortAdapter` to use record accessors (`id()`, `name()`, `email()` instead of `getId()`, `getName()`, `getEmail()`).
+  - Updated tests: `CustomerTest`, `EmailAndNameCustomerImportPolicyTest`, `CustomerCsvItemReaderConfigTest`.
+  - `CustomerImportResult` was already a record — no change needed.
+- **Outcome**: Domain model is now fully immutable via Java records. All 34 tests pass, build + startup smoke check verified.
+
+---
+
 ### Phase dependency graph
 
 ```
