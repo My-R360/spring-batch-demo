@@ -31,8 +31,8 @@ class EmailAndNameCustomerImportPolicyTest {
         Customer out = policy.apply(input);
 
         assertNotNull(out);
-        assertEquals("BOB", out.getName());
-        assertEquals("bob@example.com", out.getEmail());
+        assertEquals("BOB", out.name());
+        assertEquals("bob@example.com", out.email());
     }
 
     @Test
@@ -41,6 +41,6 @@ class EmailAndNameCustomerImportPolicyTest {
         Customer out = policy.apply(input);
 
         assertNotNull(out);
-        assertNull(out.getName());
+        assertNull(out.name());
     }
 }

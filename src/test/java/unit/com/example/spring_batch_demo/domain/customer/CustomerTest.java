@@ -7,24 +7,29 @@ import static org.junit.jupiter.api.Assertions.*;
 class CustomerTest {
 
     @Test
-    void lombokGeneratedMethodsWork() {
-        Customer c = new Customer();
-        c.setId(10L);
-        c.setName("Neo");
-        c.setEmail("neo@matrix.com");
+    void recordAccessorsWork() {
+        Customer c = new Customer(10L, "Neo", "neo@matrix.com");
 
-        assertEquals(10L, c.getId());
-        assertEquals("Neo", c.getName());
-        assertEquals("neo@matrix.com", c.getEmail());
+        assertEquals(10L, c.id());
+        assertEquals("Neo", c.name());
+        assertEquals("neo@matrix.com", c.email());
         assertTrue(c.toString().contains("Neo"));
     }
 
     @Test
-    void allArgsConstructorAndEqualityWork() {
+    void recordEqualityAndHashCode() {
         Customer c1 = new Customer(1L, "A", "a@x.com");
         Customer c2 = new Customer(1L, "A", "a@x.com");
 
         assertEquals(c1, c2);
         assertEquals(c1.hashCode(), c2.hashCode());
+    }
+
+    @Test
+    void recordInequalityForDifferentValues() {
+        Customer c1 = new Customer(1L, "A", "a@x.com");
+        Customer c2 = new Customer(2L, "B", "b@x.com");
+
+        assertNotEquals(c1, c2);
     }
 }

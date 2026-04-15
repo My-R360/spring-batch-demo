@@ -40,9 +40,9 @@ public class OracleCustomerUpsertPortAdapter implements CustomerUpsertPort {
         Map<String, ?>[] batch = customers.stream()
                 .map(c -> {
                     Map<String, Object> m = new HashMap<>();
-                    m.put("id", c.getId());
-                    m.put("name", c.getName());
-                    m.put("email", c.getEmail());
+                    m.put("id", c.id());
+                    m.put("name", c.name());
+                    m.put("email", c.email());
                     return (Map<String, ?>) m;
                 })
                 .toArray(Map[]::new);

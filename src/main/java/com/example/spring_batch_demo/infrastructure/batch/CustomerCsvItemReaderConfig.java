@@ -4,6 +4,7 @@ import com.example.spring_batch_demo.domain.customer.Customer;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
+import org.springframework.batch.item.file.mapping.FieldSetMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -34,12 +35,18 @@ public class CustomerCsvItemReaderConfig {
 
         Resource resource = resourceLoader.getResource(location);
 
+        FieldSetMapper<Customer> mapper = fieldSet -> new Customer(
+                fieldSet.readLong("id"),
+                fieldSet.readString("name"),
+                fieldSet.readString("email")
+        );
+
         return new FlatFileItemReaderBuilder<Customer>()
                 .name("customerReader")
                 .resource(resource)
                 .delimited()
                 .names("id", "name", "email")
-                .targetType(Customer.class)
+                .fieldSetMapper(mapper)
                 .build();
     }
 }

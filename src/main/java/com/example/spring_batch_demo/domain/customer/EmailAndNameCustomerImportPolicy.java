@@ -16,13 +16,11 @@ public class EmailAndNameCustomerImportPolicy implements CustomerImportPolicy {
         if (input == null) {
             return null;
         }
-        if (input.getEmail() == null || !input.getEmail().contains("@")) {
+        if (input.email() == null || !input.email().contains("@")) {
             return null;
         }
-        if (input.getName() != null) {
-            input.setName(input.getName().toUpperCase());
-        }
-        return input;
+        String uppercasedName = input.name() != null ? input.name().toUpperCase() : null;
+        return new Customer(input.id(), uppercasedName, input.email());
     }
 }
 
