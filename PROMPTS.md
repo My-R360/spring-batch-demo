@@ -419,6 +419,28 @@ These can be done alongside any phase:
 
 ---
 
+### 20) Phase 1 — Async Import API + Batch-Level Retry
+
+- **Prompt summary**: Implement Phase 1 from the roadmap: make the import API asynchronous (return 202 immediately with jobExecutionId, add GET status polling endpoint) and add batch-level fault tolerance (retry transient DB errors, skip malformed CSV rows, exponential backoff).
+- **Changes done**:
+  - **Application layer**:
+    - Split `CustomerImportUseCase` interface: `launchImport(String)` returns `Long` (jobExecutionId), `getImportStatus(Long)` returns `CustomerImportResult`.
+    - Extended `CustomerImportResult` record with `readCount`, `writeCount`, `skipCount` (all `long`).
+  - **Presentation layer**:
+    - `BatchJobController` POST now returns **202 Accepted** with `{"jobExecutionId": N}` (JSON).
+    - Added `GET /api/batch/customer/import/{jobExecutionId}/status` endpoint (returns progress or 404).
+  - **Infrastructure layer**:
+    - Created `AsyncJobLauncherConfig` — provides async `JobLauncher` via `TaskExecutorJobLauncher` + `SimpleAsyncTaskExecutor`.
+    - Updated `SpringBatchCustomerImportUseCase` — `launchImport()` calls async launcher, `getImportStatus()` queries `JobExplorer` for step counts.
+    - Updated `CustomerImportJobConfig` — `customerStep()` now uses `faultTolerant()` with retry (TransientDataAccessException, limit 3), skip (FlatFileParseException, limit 100), and exponential backoff (1s initial, 2x multiplier, 8s max).
+    - Updated `JobCompletionListener` — logs per-step read/write/skip/rollback/commit/filter counts.
+  - **Config**: Added `spring.main.allow-bean-definition-overriding=true` to allow custom `jobLauncher` to override auto-configured one.
+  - **Tests**: Updated all affected tests (BatchJobControllerTest, SpringBatchCustomerImportUseCaseTest, JobCompletionListenerTest, CustomerImportResultTest, BatchJobControllerWebMvcIntegrationTest) to match new async API and progress fields.
+  - **Docs**: Updated README.md, RUNBOOK.md, SD-DESIGN.md with new endpoints, async flow, retry behavior.
+- **Outcome**: 42 tests pass, build succeeds, startup smoke check passes. API is now async with fault-tolerant batch processing.
+
+---
+
 ### Phase dependency graph
 
 ```

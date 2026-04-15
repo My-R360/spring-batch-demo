@@ -5,7 +5,10 @@ import java.util.List;
 public record CustomerImportResult(
         Long jobExecutionId,
         String status,
-        List<String> failures
+        List<String> failures,
+        long readCount,
+        long writeCount,
+        long skipCount
 ) {
 }
 

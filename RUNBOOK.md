@@ -76,34 +76,38 @@ In this mode you must create tables yourself (or via migrations).
 
 ## 5) Use Postman (import API)
 
-### 5.1 Endpoint
+The import API is **asynchronous** — POST returns **202 Accepted** immediately with a `jobExecutionId`. Poll the status endpoint to track progress.
 
-- Method: `POST`
-- URL: `http://localhost:8080/api/batch/customer/import`
-- Query param: `inputFile` (optional)
+### 5.1 Endpoints
+
+| Method | URL | Description |
+|--------|-----|-------------|
+| `POST` | `/api/batch/customer/import` | Launch import (returns 202 + jobExecutionId) |
+| `GET` | `/api/batch/customer/import/{jobExecutionId}/status` | Poll job status/progress |
 
 ### 5.2 Import the default CSV bundled in the jar
 
-In Postman:
-- **POST** `http://localhost:8080/api/batch/customer/import`
+```bash
+curl -X POST "http://localhost:8080/api/batch/customer/import"
+# → 202  {"jobExecutionId": 1}
+```
 
-This uses `classpath:customers.csv`.
+### 5.3 Poll job status
 
-### 5.3 Import your new CSV `customers-01.csv`
+```bash
+curl "http://localhost:8080/api/batch/customer/import/1/status"
+# → 200  {"jobExecutionId":1,"status":"COMPLETED","failures":[],"readCount":6,"writeCount":5,"skipCount":0}
+```
 
-In Postman:
-- **POST** `http://localhost:8080/api/batch/customer/import`
-- Params:
-  - key: `inputFile`
-  - value: `classpath:customers-01.csv`
+Status values: `STARTING` → `STARTED` → `COMPLETED` or `FAILED`. Returns 404 for unknown IDs.
 
-Or directly:
+### 5.4 Import a different CSV
 
 ```bash
 curl -X POST "http://localhost:8080/api/batch/customer/import?inputFile=classpath:customers-01.csv"
 ```
 
-### 5.4 Import ANY local file on your Mac
+### 5.5 Import ANY local file on your Mac
 
 Use the `file:` resource prefix with an **absolute path**:
 
@@ -151,21 +155,30 @@ ORDER BY JOB_EXECUTION_ID DESC;
 
 ## 7) Internal flow (what calls what)
 
-### 7.1 Request → Job launch
+### 7.1 Request → Job launch (async)
 
-1. Postman hits `presentation.api.BatchJobController.importCustomers`
-2. Controller delegates to `application.customer.CustomerImportUseCase`
-3. Infrastructure implementation (`infrastructure.batch.SpringBatchCustomerImportUseCase`) builds `JobParameters` (`inputFile`, `run.at`)
-4. Infrastructure calls `JobLauncher.run(customerJob, params)`
+1. Postman hits `POST /api/batch/customer/import`
+2. Controller calls `CustomerImportUseCase.launchImport(inputFile)`
+3. Infrastructure impl builds `JobParameters` and calls the **async** `JobLauncher.run()` — returns immediately
+4. Controller returns **202 Accepted** with `{"jobExecutionId": N}`
 
-### 7.2 Job → Step → chunk loop
+### 7.2 Job → Fault-tolerant step → chunk loop
 
-`customerJob` runs a single step `customerStep` (chunk size 10):
+`customerJob` runs a single fault-tolerant step `customerStep` (chunk size 10):
 
 - Repeatedly:
   - Reader reads 1 CSV line → `Customer`
   - Processor validates/transforms → `Customer` or `null` (filtered)
   - Writer upserts the chunk into Oracle
+- **Retry**: `TransientDataAccessException` retried up to 3 times with exponential backoff (1s → 2s → 4s, max 8s)
+- **Skip**: `FlatFileParseException` (malformed CSV rows) skipped, up to 100 per job
+
+### 7.3 Status polling
+
+1. Client calls `GET /api/batch/customer/import/{id}/status`
+2. Controller calls `CustomerImportUseCase.getImportStatus(id)`
+3. Infrastructure uses `JobExplorer` to look up the `JobExecution` and its `StepExecution` counts
+4. Returns `{status, readCount, writeCount, skipCount, failures}`
 
 ### 7.3 Key code locations
 
