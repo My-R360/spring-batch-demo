@@ -24,7 +24,7 @@ class CustomerCsvItemReaderConfigTest {
         reader.close();
 
         assertNotNull(first);
-        assertEquals(1L, first.getId());
+        assertEquals(1L, first.id());
     }
 
     @Test
@@ -41,8 +41,8 @@ class CustomerCsvItemReaderConfigTest {
         reader.close();
 
         assertNotNull(first);
-        assertEquals(100L, first.getId());
-        assertEquals("Neo", first.getName());
+        assertEquals(100L, first.id());
+        assertEquals("Neo", first.name());
     }
 
     @Test
@@ -53,6 +53,6 @@ class CustomerCsvItemReaderConfigTest {
         reader.close();
 
         assertNotNull(first);
-        assertEquals(1L, first.getId());
+        assertEquals(1L, first.id());
     }
 }
