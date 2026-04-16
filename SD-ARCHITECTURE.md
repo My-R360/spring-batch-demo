@@ -29,6 +29,10 @@ Dependency rule:
 
 - Code may depend **only inward**, never outward (domain must not import Spring Batch classes).
 
+**DTOs on use-case contracts:** Types such as `CustomerImportResult` live in **application** because they are the **return shape** of `CustomerImportUseCase`. Infrastructure implementations (e.g. `SpringBatchCustomerImportUseCase`) **construct** those records to satisfy the interface — that is still an inward dependency (infra → application API), not application “calling down” into infra.
+
+They are **not** domain models: they carry **job / polling** concerns (`BatchStatus`, read/skip/write counters). **`Customer`** stays in **domain** as the business row shape.
+
 ## Current code mapping (as-is)
 
 Today, the project is functional and has been refactored into onion-style layers. Key files:
