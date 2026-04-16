@@ -457,6 +457,40 @@ These can be done alongside any phase:
 
 ---
 
+### 22) Cursor rules vs skills, Slidev sync rule, onion diagram clarification
+
+- **Prompt summary**: Explain rules vs skills; review `.cursor` rules/skills; add rule to refresh Slidev on code changes (E2E narrative); clarify whether `SpringBatchCustomerImportUseCase` → `CustomerImportResult` breaks onion.
+- **Changes done**:
+  - Added `.cursor/rules/slidev-deck.mdc` (when/how to update `slidev/`, E2E slide order, diagram accuracy, `slidev build`).
+  - Extended `.cursor/rules/onion-architecture.mdc` with **contract types / DTOs on the port** (infra may construct application return types).
+  - Extended `.cursor/rules/docs-and-prompt-log.mdc` and `.cursor/skills/spring-batch-onion-workflow/SKILL.md` to include Slidev updates.
+  - Updated `slidev/slides.md` onion Mermaid: `implements` edge from impl to interface; removed misleading `IMPL --> RES`; added on-slide clarification.
+- **Outcome**: Deck and rules align with dependency inversion; diagram no longer implies an illegal upward call.
+
+---
+
+### 23) Slide deck: diagram edges for `CustomerImportResult`, beginner path, rules sync
+
+- **Prompt summary**: Restore visible links to `CustomerImportResult` in onion Mermaid; clarify domain vs application DTO; improve slides for chronological / entry-level understanding; align rules/skills.
+- **Changes done**:
+  - **`slidev/slides.md`**: `UC → RES` and `IMPL → RES` (labeled); new slides — “How to use this deck”, “Spring Batch in 60s”, “`Customer` vs `CustomerImportResult`”; friendlier headings and API/result/testing intros; sequence slide titled as time order; expanded diagram terms table.
+  - **`.cursor/rules/onion-architecture.mdc`**: explicit “keep status DTOs in application, not domain”.
+  - **`.cursor/rules/slidev-deck.mdc`**: diagram + chronological onboarding guidance.
+  - **`SD-ARCHITECTURE.md`**: contrast `Customer` vs `CustomerImportResult`.
+  - **`.cursor/skills/spring-batch-onion-workflow/SKILL.md`**: note onboarding use of slides.
+- **Outcome**: Juniors see why the result record is not domain; diagrams show all key types.
+
+---
+
+### 24) `ROADMAP.md` — phased plans, done vs left, suggestions
+
+- **Prompt summary**: Add a markdown file capturing future steps/plans (Phases 1–5 + foundation), checkmarks for done vs remaining, productive suggestions beyond phases, aligned with Slidev “What to improve next” before starting Phase 2.
+- **Changes done**:
+  - Added **`ROADMAP.md`** at repo root: legend, dependency graph, foundation + Phase 1–5 tables (✅/⬜/🔄), Phase 1 optional polish, cross-phase suggestions (config, security, observability, OpenAPI prep, Flyway, idempotency, scale).
+- **Outcome**: Single checklist-style doc for planning; Phase 1 marked complete; Phase 2+ and housekeeping marked not started unless noted.
+
+---
+
 ### Phase dependency graph
 
 ```

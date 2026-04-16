@@ -7,7 +7,7 @@ description: Implements and evolves the Spring Batch customer-import service usi
 
 ## Purpose
 
-Apply consistent implementation patterns for this project:
+Apply consistent implementation patterns for this project (works for **senior** refactors and **entry-level** onboarding when paired with `slidev/slides.md`):
 - Onion architecture boundaries (`presentation`, `application`, `domain`, `infrastructure`)
 - Spring Batch import flow (reader -> processor -> writer)
 - Oracle persistence via application ports/adapters
@@ -19,6 +19,7 @@ Apply consistent implementation patterns for this project:
 - API endpoint: `POST /api/batch/customer/import`
 - Input parameter: `inputFile` (`classpath:` or `file:` resource)
 - Core docs: `README.md`, `RUNBOOK.md`, `SD-DESIGN.md`, `SD-ARCHITECTURE.md`, `PROMPTS.md`
+- Optional deck: `slidev/` (see `.cursor/rules/slidev-deck.mdc` — keep slides E2E and diagrams accurate when code changes)
 
 ## Implementation checklist
 
@@ -33,6 +34,7 @@ Use this checklist for feature/refactor tasks:
 7. Build and verify:
    - `./mvnw clean package -DskipTests`
 8. Update docs + append `PROMPTS.md` entry.
+9. If `slidev/` is present: refresh `slidev/slides.md` (narrative + Mermaid) for the same behavior change; run `cd slidev && npx slidev build slides.md`.
 
 ## Debug workflow
 

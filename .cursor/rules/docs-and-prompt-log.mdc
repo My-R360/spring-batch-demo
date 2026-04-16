@@ -9,5 +9,6 @@ alwaysApply: true
   - update `README.md` (quick usage)
   - update `RUNBOOK.md` (operational steps/troubleshooting)
   - update `SD-DESIGN.md` / `SD-ARCHITECTURE.md` when design/architecture changes
+  - if a **`slidev/`** deck exists locally, update **`slidev/slides.md`** (and related deck files) per **`slidev-deck.mdc`** so diagrams and flow match the code end-to-end
 - Append a new entry to `PROMPTS.md` for meaningful user requests and resulting changes.
 - Keep entries chronological and concise.
