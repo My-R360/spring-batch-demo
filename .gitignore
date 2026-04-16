@@ -56,3 +56,11 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Cursor / local agent (tracked on feature branches only; not on main) ###
+.cursor/
+PROMPTS.md
+AGENTS.md
+
+### Slidev (local deck; do not commit) ###
+slidev/
