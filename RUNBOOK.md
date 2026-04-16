@@ -8,6 +8,10 @@
 
 This repo uses the Maven Wrapper: `./mvnw`.
 
+### 1.1) Optional: Slidev architecture deck
+
+Optional Slidev deck: use a local `slidev/` checkout (the folder is **gitignored**). From that directory: `npm install`, then `npm run dev` to preview. See `slidev/README.md` and `slidev/PRESENTATION.md` when present.
+
 ## 2) Oracle XE in Docker
 
 ### 2.1 Container status

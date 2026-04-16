@@ -125,3 +125,7 @@ Poll: GET status → Application UseCase → JobExplorer → progress counts + s
 - **Architecture (Onion) & target structure**: `SD-ARCHITECTURE.md`
 
 See `RUNBOOK.md` for a detailed, step-by-step explanation and troubleshooting tips.
+
+## Slide deck (Slidev)
+
+Optional **Slidev** deck (Mermaid, async + fault-tolerance paths): keep a local `slidev/` directory (that path is **gitignored**—not pushed). See `slidev/README.md` for `npm install` / `npm run dev` when you have a copy.

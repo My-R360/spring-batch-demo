@@ -61,3 +61,6 @@ build/
 .cursor/
 PROMPTS.md
 AGENTS.md
+
+### Slidev (local deck; do not commit) ###
+slidev/
