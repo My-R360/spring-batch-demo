@@ -26,7 +26,7 @@ public class SpringBatchCustomerImportUseCase implements CustomerImportUseCase {
     private final Job customerJob;
 
     public SpringBatchCustomerImportUseCase(
-            JobLauncher jobLauncher,
+            @Qualifier("asyncJobLauncher") JobLauncher jobLauncher,
             JobExplorer jobExplorer,
             @Qualifier("customerJob") Job customerJob
     ) {

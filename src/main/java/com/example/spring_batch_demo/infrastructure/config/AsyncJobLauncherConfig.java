@@ -14,8 +14,8 @@ import org.springframework.core.task.SimpleAsyncTaskExecutor;
 @Configuration
 public class AsyncJobLauncherConfig {
 
-    @Bean
-    public JobLauncher jobLauncher(JobRepository jobRepository) throws Exception {
+    @Bean("asyncJobLauncher")
+    public JobLauncher asyncJobLauncher(JobRepository jobRepository) throws Exception {
         TaskExecutorJobLauncher launcher = new TaskExecutorJobLauncher();
         launcher.setJobRepository(jobRepository);
         launcher.setTaskExecutor(new SimpleAsyncTaskExecutor("batch-"));

@@ -1,6 +1,5 @@
 package com.example.spring_batch_demo.infrastructure.batch;
 
-import java.util.Collection;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -85,8 +84,6 @@ class SpringBatchCustomerImportUseCaseTest {
         when(execution.getId()).thenReturn(50L);
         when(execution.getStatus()).thenReturn(BatchStatus.COMPLETED);
         when(execution.getAllFailureExceptions()).thenReturn(List.of());
-        @SuppressWarnings("unchecked")
-        Collection<StepExecution> steps = (Collection<StepExecution>) mock(Collection.class);
         when(execution.getStepExecutions()).thenReturn(List.of(stepExecution));
 
         CustomerImportResult result = useCase.getImportStatus(50L);
