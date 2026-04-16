@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.batch.core.BatchStatus;
+import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.StepExecution;
@@ -83,7 +84,7 @@ class SpringBatchCustomerImportUseCaseTest {
         when(jobExplorer.getJobExecution(50L)).thenReturn(execution);
         when(execution.getId()).thenReturn(50L);
         when(execution.getStatus()).thenReturn(BatchStatus.COMPLETED);
-        when(execution.getAllFailureExceptions()).thenReturn(List.of());
+        when(execution.getExitStatus()).thenReturn(ExitStatus.COMPLETED);
         when(execution.getStepExecutions()).thenReturn(List.of(stepExecution));
 
         CustomerImportResult result = useCase.getImportStatus(50L);
@@ -100,12 +101,11 @@ class SpringBatchCustomerImportUseCaseTest {
     @Test
     void getImportStatusReturnsFailuresWhenJobFailed() {
         JobExecution execution = mock(JobExecution.class);
-        RuntimeException ex = new RuntimeException("db down");
 
         when(jobExplorer.getJobExecution(60L)).thenReturn(execution);
         when(execution.getId()).thenReturn(60L);
         when(execution.getStatus()).thenReturn(BatchStatus.FAILED);
-        when(execution.getAllFailureExceptions()).thenReturn(List.of(ex));
+        when(execution.getExitStatus()).thenReturn(new ExitStatus("FAILED", "java.lang.RuntimeException: db down"));
         when(execution.getStepExecutions()).thenReturn(List.of());
 
         CustomerImportResult result = useCase.getImportStatus(60L);
@@ -113,6 +113,6 @@ class SpringBatchCustomerImportUseCaseTest {
         assertNotNull(result);
         assertEquals("FAILED", result.status());
         assertEquals(1, result.failures().size());
-        assertTrue(result.failures().get(0).contains("RuntimeException"));
+        assertTrue(result.failures().get(0).contains("db down"));
     }
 }

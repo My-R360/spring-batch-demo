@@ -101,6 +101,8 @@ curl "http://localhost:8080/api/batch/customer/import/1/status"
 
 Status values: `STARTING` → `STARTED` → `COMPLETED` or `FAILED`. Returns 404 for unknown IDs.
 
+When `status` is `FAILED`, the `failures` list is filled from **persisted** Spring Batch exit messages on the job and on any failed steps (the same text stored in batch metadata and visible after a process restart). It is not derived from transient in-memory exception lists, so polling remains accurate across JVMs.
+
 ### 5.4 Import a different CSV
 
 ```bash
