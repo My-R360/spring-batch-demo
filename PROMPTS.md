@@ -441,6 +441,22 @@ These can be done alongside any phase:
 
 ---
 
+### 21) Phase 1 — Bug fixes (post-PR)
+
+- **Prompt summary**: Two bugs discovered during Phase 1 PR review / testing; fixed manually.
+- **Bug 1 — `@Qualifier` not propagated by Lombok `@RequiredArgsConstructor`**:
+  - `SpringBatchCustomerImportUseCase` had `@Qualifier("customerJob")` on a field, but Lombok's generated constructor does not copy parameter-level annotations. Spring could not disambiguate the `Job` bean at injection time.
+  - **Fix**: Replaced `@RequiredArgsConstructor` with an explicit constructor that carries `@Qualifier("customerJob")` on the `Job` parameter.
+  - **File**: `infrastructure/batch/SpringBatchCustomerImportUseCase.java`
+- **Bug 2 — Failed-status detection required non-empty failures list**:
+  - Controller checked `!result.failures().isEmpty() && "FAILED".equals(...)`, so a job that failed with an empty failures list was returned as 200 OK instead of 500.
+  - **Fix**: Simplified condition to `"FAILED".equalsIgnoreCase(result.status())` — status alone determines the HTTP response code.
+  - **File**: `presentation/api/BatchJobController.java`
+  - **Tests added**: Two unit tests covering FAILED-with-empty-failures and COMPLETED-with-failure-messages scenarios.
+- **Outcome**: Both bugs resolved; build and tests pass.
+
+---
+
 ### Phase dependency graph
 
 ```

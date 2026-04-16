@@ -258,6 +258,16 @@ See `SD-ARCHITECTURE.md` for the target package structure and refactor plan, whi
 ### Duplicate key errors (ORA-00001)
 - This project uses `MERGE` now, so reruns should not fail on duplicate IDs.
 
+### Job fails to start: `NoUniqueBeanDefinitionException` for `Job`
+- Symptom: Spring cannot autowire the `Job` bean because multiple `Job` beans exist and no qualifier narrows the match.
+- Cause: Lombok's `@RequiredArgsConstructor` does **not** propagate `@Qualifier` annotations from fields to constructor parameters. So `@Qualifier("customerJob")` on a field is silently ignored in the generated constructor.
+- Fix: Replace `@RequiredArgsConstructor` with an explicit constructor and put `@Qualifier("customerJob")` on the constructor parameter.
+
+### Controller returns 200 OK for a FAILED job
+- Symptom: A batch job fails but the API response is `200 OK` instead of `500 Internal Server Error`.
+- Cause: The original condition was `!result.failures().isEmpty() && "FAILED".equals(...)`, requiring **both** a non-empty failures list and FAILED status. A job can fail without populating the failures list (e.g. exception before any rows are processed).
+- Fix: Check only `"FAILED".equalsIgnoreCase(result.status())` to determine the HTTP response code.
+
 ### `mvn clean install` fails with Byte Buddy / Mockito errors
 - Ensure you are running with **Java 21** (`java -version`). Java 25+ triggers Byte Buddy incompatibilities.
 - The subclass mock maker (`src/test/resources/mockito-extensions/org.mockito.plugins.MockMaker`) should already be in place.
