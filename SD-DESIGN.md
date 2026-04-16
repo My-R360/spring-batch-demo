@@ -73,6 +73,7 @@ This document explains key design choices and where they appear in the current o
   - `src/main/java/com/example/spring_batch_demo/infrastructure/config/AsyncJobLauncherConfig.java`
 - The use-case interface is split into `launchImport` (fire-and-forget, returns `jobExecutionId`) and `getImportStatus` (reads progress via `JobExplorer`).
 - The controller returns **202 Accepted** on POST and exposes a GET status endpoint.
+- `getImportStatus` builds `failures` from persisted **exit descriptions** on the job and on any `FAILED` steps (`JobExecution#getAllFailureExceptions()` is not reloaded from the database when using `JobExplorer`).
 
 ### Fault tolerance (Phase 1)
 
