@@ -73,6 +73,7 @@ This document explains key design choices and where they appear in the current o
   - `src/main/java/com/example/spring_batch_demo/infrastructure/config/AsyncJobLauncherConfig.java`
 - The use-case interface is split into `launchImport` (fire-and-forget, returns `jobExecutionId`) and `getImportStatus` (reads progress via `JobExplorer`).
 - The controller returns **202 Accepted** on POST and exposes a GET status endpoint.
+- **GET status HTTP semantics**: **404** if the execution id is unknown; **500** when batch `status` is `FAILED` (response body remains `CustomerImportResult`); **200** for `STARTED` / `COMPLETED` / etc., including `COMPLETED` with a non-empty `failures` list when the job exited successfully but logged warnings.
 - `getImportStatus` builds `failures` from persisted **exit descriptions** on the job and on any `FAILED` steps (`JobExecution#getAllFailureExceptions()` is not reloaded from the database when using `JobExplorer`).
 
 ### Fault tolerance (Phase 1)
@@ -108,4 +109,9 @@ Affected file (fixed): `infrastructure/batch/SpringBatchCustomerImportUseCase.ja
 
 - `DevStartupDiagnostics` reports DB user and table visibility in `dev`.
   - `src/main/java/com/example/spring_batch_demo/infrastructure/diagnostics/DevStartupDiagnostics.java`
+
+## Startup logging (Spring Batch + JDBC)
+
+- On **Spring Boot 3.2.x**, context refresh may log **WARN** from `PostProcessorRegistrationDelegate` about beans “not eligible for getting processed by all BeanPostProcessors” (often involving `JobRegistryBeanPostProcessor`, `DataSource`, `PlatformTransactionManager`). This is a known ordering quirk between **Batch auto-configuration** and the JDBC stack; it is **usually harmless** if the app starts and batch jobs execute.
+- Prefer fixing only when startup **actually fails**; see `RUNBOOK.md` troubleshooting for this topic.
 

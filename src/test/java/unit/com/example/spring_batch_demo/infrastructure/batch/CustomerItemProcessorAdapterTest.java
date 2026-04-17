@@ -6,7 +6,9 @@ import com.example.spring_batch_demo.domain.customer.Customer;
 import com.example.spring_batch_demo.domain.customer.CustomerImportPolicy;
 
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class CustomerItemProcessorAdapterTest {
 

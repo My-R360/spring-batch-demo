@@ -42,6 +42,7 @@ Today, the project is functional and has been refactored into onion-style layers
 - Application:
   - `application/customer/CustomerImportUseCase.java` (`launchImport` + `getImportStatus`)
   - `application/customer/CustomerImportResult.java` (includes progress counts)
+  - `application/customer/CustomerImportDefaults.java` (default CSV resource)
   - `application/customer/port/CustomerUpsertPort.java`
 - Domain:
   - `domain/customer/Customer.java`
@@ -52,6 +53,7 @@ Today, the project is functional and has been refactored into onion-style layers
   - `infrastructure/batch/SpringBatchCustomerImportUseCase.java` (async launch via JobLauncher, status via JobExplorer)
   - `infrastructure/batch/CustomerCsvItemReaderConfig.java`
   - `infrastructure/batch/CustomerItemProcessorAdapter.java`
+  - `infrastructure/batch/CustomerUpsertItemWriterAdapter.java` (chunk writer → port)
   - `infrastructure/batch/JobCompletionListener.java` (logs per-step counts)
   - `infrastructure/config/AsyncJobLauncherConfig.java` (async TaskExecutor for JobLauncher)
   - `infrastructure/persistence/OracleCustomerUpsertPortAdapter.java`
@@ -72,16 +74,19 @@ com.example.spring_batch_demo
 │
 ├── application
 │   └── customer
-│       ├── port
-│       │   ├── CustomerUpsertPort.java
-│       │   └── CustomerSourcePort.java (optional)
-│       └── CustomerImportUseCase.java (or ApplicationService)
+│       ├── CustomerImportUseCase.java
+│       ├── CustomerImportResult.java (job / polling DTO)
+│       ├── CustomerImportDefaults.java (optional defaults)
+│       └── port
+│           ├── CustomerUpsertPort.java
+│           └── CustomerSourcePort.java (optional)
 │
 ├── infrastructure
 │   ├── batch
 │   │   ├── CustomerImportJobConfig.java
 │   │   ├── CustomerCsvItemReaderConfig.java
 │   │   ├── CustomerItemProcessorAdapter.java
+│   │   ├── CustomerUpsertItemWriterAdapter.java
 │   │   ├── SpringBatchCustomerImportUseCase.java
 │   │   └── JobCompletionListener.java
 │   ├── config
@@ -120,20 +125,18 @@ Notes:
 
 ### Status polling
 5. HTTP GET → `BatchJobController` → `CustomerImportUseCase.getImportStatus()`
-6. `JobExplorer` reads `JobExecution` + `StepExecution` counts → returns progress
+6. `JobExplorer` reads `JobExecution` + `StepExecution` counts → returns progress (`CustomerImportResult`)
+7. Controller maps **unknown id → 404**, **`FAILED` status → 500** (same JSON body), **other states → 200**
 
-## Refactor plan (high level)
+## Evolution (done vs optional next)
 
-When implementation begins, we will refactor in small steps:
+**Already in place:** `domain` + `application` (use-case, `CustomerUpsertPort`, `CustomerImportResult`) + `infrastructure.batch` / `infrastructure.persistence` adapters + thin `presentation.api` controller.
 
-- Introduce `domain` and move pure model/rules there (no Spring annotations).
-- Introduce `application` ports for persistence (and optionally for customer source).
-- Move Batch wiring to `infrastructure.batch` and make processor/writer act as adapters.
-- Move controller to `presentation.api` and keep it thin.
-- Update docs and verify with:
-  - `./mvnw clean package`
-  - Postman import calls
-  - Oracle queries for `CUSTOMER` and `BATCH_*`
+**Optional next steps** (see `ROADMAP.md`):
+
+- `CustomerSourcePort` (abstract CSV behind a port).
+- Further split infra packages (e.g. dedicated `adapter` vs `config` folders) if the codebase grows.
+- Verify changes with `./mvnw clean verify`, Postman/curl, and Oracle queries for `CUSTOMER` and `BATCH_*`.
 
 ## Further reading (Onion Architecture)
 

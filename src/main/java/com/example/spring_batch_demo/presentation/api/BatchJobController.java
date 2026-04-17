@@ -44,6 +44,11 @@ public class BatchJobController {
 
     /**
      * Returns the current status and progress of a previously launched import job.
+     *
+     * <p>HTTP mapping: {@code 404} if the execution id is unknown; {@code 500} when batch
+     * {@code status} is {@code FAILED} (body is still {@link CustomerImportResult} so clients
+     * keep counters and {@code failures}); {@code 200} for all other known states including
+     * {@code COMPLETED} with a non-empty {@code failures} list (warnings vs hard failure).</p>
      */
     @GetMapping("/customer/import/{jobExecutionId}/status")
     public ResponseEntity<CustomerImportResult> getImportStatus(
@@ -52,6 +57,9 @@ public class BatchJobController {
         CustomerImportResult result = importUseCase.getImportStatus(jobExecutionId);
         if (result == null) {
             return ResponseEntity.notFound().build();
+        }
+        if ("FAILED".equalsIgnoreCase(result.status())) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(result);
         }
         return ResponseEntity.ok(result);
     }

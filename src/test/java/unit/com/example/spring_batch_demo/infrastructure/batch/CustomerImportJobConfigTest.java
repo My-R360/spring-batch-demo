@@ -11,8 +11,9 @@ import org.springframework.transaction.PlatformTransactionManager;
 
 import com.example.spring_batch_demo.domain.customer.Customer;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.Mockito.mock;
 
 class CustomerImportJobConfigTest {
 
