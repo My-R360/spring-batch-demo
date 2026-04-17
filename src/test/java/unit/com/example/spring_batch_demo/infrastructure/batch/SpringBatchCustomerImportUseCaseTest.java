@@ -115,4 +115,48 @@ class SpringBatchCustomerImportUseCaseTest {
         assertEquals(1, result.failures().size());
         assertTrue(result.failures().get(0).contains("db down"));
     }
+
+    @Test
+    void getImportStatusIgnoresJobExitDescriptionWhenJobDidNotFail() {
+        JobExecution execution = mock(JobExecution.class);
+        StepExecution stepExecution = mock(StepExecution.class);
+        when(stepExecution.getStatus()).thenReturn(BatchStatus.COMPLETED);
+        when(stepExecution.getReadCount()).thenReturn(1L);
+        when(stepExecution.getWriteCount()).thenReturn(1L);
+        when(stepExecution.getSkipCount()).thenReturn(0L);
+
+        when(jobExplorer.getJobExecution(70L)).thenReturn(execution);
+        when(execution.getId()).thenReturn(70L);
+        when(execution.getStatus()).thenReturn(BatchStatus.STOPPED);
+        when(execution.getExitStatus()).thenReturn(new ExitStatus("STOPPED", "operator requested stop"));
+        when(execution.getStepExecutions()).thenReturn(List.of(stepExecution));
+
+        CustomerImportResult result = useCase.getImportStatus(70L);
+
+        assertNotNull(result);
+        assertEquals("STOPPED", result.status());
+        assertTrue(result.failures().isEmpty());
+    }
+
+    @Test
+    void getImportStatusIgnoresCustomCompletedExitDescription() {
+        JobExecution execution = mock(JobExecution.class);
+        StepExecution stepExecution = mock(StepExecution.class);
+        when(stepExecution.getStatus()).thenReturn(BatchStatus.COMPLETED);
+        when(stepExecution.getReadCount()).thenReturn(1L);
+        when(stepExecution.getWriteCount()).thenReturn(1L);
+        when(stepExecution.getSkipCount()).thenReturn(0L);
+
+        when(jobExplorer.getJobExecution(71L)).thenReturn(execution);
+        when(execution.getId()).thenReturn(71L);
+        when(execution.getStatus()).thenReturn(BatchStatus.COMPLETED);
+        when(execution.getExitStatus()).thenReturn(new ExitStatus("COMPLETED", "custom completion note"));
+        when(execution.getStepExecutions()).thenReturn(List.of(stepExecution));
+
+        CustomerImportResult result = useCase.getImportStatus(71L);
+
+        assertNotNull(result);
+        assertEquals("COMPLETED", result.status());
+        assertTrue(result.failures().isEmpty());
+    }
 }

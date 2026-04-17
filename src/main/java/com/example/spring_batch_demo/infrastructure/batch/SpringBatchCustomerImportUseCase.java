@@ -6,6 +6,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+import com.example.spring_batch_demo.application.customer.CustomerImportDefaults;
 import com.example.spring_batch_demo.application.customer.CustomerImportResult;
 import com.example.spring_batch_demo.application.customer.CustomerImportUseCase;
 import lombok.extern.slf4j.Slf4j;
@@ -41,9 +42,7 @@ public class SpringBatchCustomerImportUseCase implements CustomerImportUseCase {
 
     @Override
     public Long launchImport(String inputFile) throws Exception {
-        String resolvedInput = (inputFile == null || inputFile.isBlank())
-                ? "classpath:customers.csv"
-                : inputFile.trim();
+        String resolvedInput = CustomerImportDefaults.resolveInputFileLocation(inputFile);
 
         log.info("Launching Spring Batch job={} inputFile={}", customerJob.getName(), resolvedInput);
 
@@ -89,12 +88,15 @@ public class SpringBatchCustomerImportUseCase implements CustomerImportUseCase {
      * executions from the database, so {@link JobExecution#getAllFailureExceptions()} is usually
      * empty after a restart or when polling another process. Exit descriptions on the job and
      * failed steps are persisted and are the reliable source for API consumers.
+     * The job-level exit description is only used when the job {@link BatchStatus} is
+     * {@link BatchStatus#FAILED}; other statuses may still carry a custom exit description
+     * (for example after a stop) which must not be reported as a failure.
      */
     private static List<String> resolveFailureMessages(JobExecution execution) {
         Set<String> messages = new LinkedHashSet<>();
 
         ExitStatus jobExit = execution.getExitStatus();
-        if (jobExit != null) {
+        if (jobExit != null && execution.getStatus() == BatchStatus.FAILED) {
             addNonBlank(messages, jobExit.getExitDescription());
         }
 

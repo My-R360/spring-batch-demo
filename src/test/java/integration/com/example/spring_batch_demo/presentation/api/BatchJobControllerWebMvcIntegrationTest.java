@@ -11,6 +11,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.example.spring_batch_demo.application.customer.CustomerImportResult;
 import com.example.spring_batch_demo.application.customer.CustomerImportUseCase;
 
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -27,7 +28,7 @@ class BatchJobControllerWebMvcIntegrationTest {
 
     @Test
     void postImportReturnsAcceptedWithJobExecutionId() throws Exception {
-        when(useCase.launchImport("classpath:customers.csv")).thenReturn(33L);
+        when(useCase.launchImport(nullable(String.class))).thenReturn(33L);
 
         mockMvc.perform(post("/api/batch/customer/import"))
                 .andExpect(status().isAccepted())

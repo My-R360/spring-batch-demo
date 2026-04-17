@@ -1,7 +1,6 @@
 package com.example.spring_batch_demo.presentation.api;
 
 import java.util.Map;
-import java.util.Optional;
 
 import com.example.spring_batch_demo.application.customer.CustomerImportResult;
 import com.example.spring_batch_demo.application.customer.CustomerImportUseCase;
@@ -34,12 +33,9 @@ public class BatchJobController {
     public ResponseEntity<Map<String, Object>> importCustomers(
             @RequestParam(name = "inputFile", required = false) String inputFile
     ) throws Exception {
-        String resolvedInput = Optional.ofNullable(inputFile)
-                .filter(s -> !s.isBlank())
-                .orElse("classpath:customers.csv");
-        log.info("Import API called. inputFile={}", resolvedInput);
+        log.info("Import API called. inputFile={}", inputFile);
 
-        Long jobExecutionId = importUseCase.launchImport(resolvedInput);
+        Long jobExecutionId = importUseCase.launchImport(inputFile);
         log.info("Import job launched. jobExecutionId={}", jobExecutionId);
 
         return ResponseEntity.status(HttpStatus.ACCEPTED)
