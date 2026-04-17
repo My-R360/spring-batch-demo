@@ -6,6 +6,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+import com.example.spring_batch_demo.application.customer.CustomerImportDefaults;
 import com.example.spring_batch_demo.application.customer.CustomerImportResult;
 import com.example.spring_batch_demo.application.customer.CustomerImportUseCase;
 import lombok.extern.slf4j.Slf4j;
@@ -41,9 +42,7 @@ public class SpringBatchCustomerImportUseCase implements CustomerImportUseCase {
 
     @Override
     public Long launchImport(String inputFile) throws Exception {
-        String resolvedInput = (inputFile == null || inputFile.isBlank())
-                ? "classpath:customers.csv"
-                : inputFile.trim();
+        String resolvedInput = CustomerImportDefaults.resolveInputFileLocation(inputFile);
 
         log.info("Launching Spring Batch job={} inputFile={}", customerJob.getName(), resolvedInput);
 

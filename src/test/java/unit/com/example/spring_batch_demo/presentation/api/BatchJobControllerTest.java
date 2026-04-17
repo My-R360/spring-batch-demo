@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 class BatchJobControllerTest {
@@ -19,12 +20,13 @@ class BatchJobControllerTest {
 
     @Test
     void importCustomersReturnsAcceptedWithJobExecutionId() throws Exception {
-        when(importUseCase.launchImport("classpath:customers.csv")).thenReturn(101L);
+        when(importUseCase.launchImport(isNull())).thenReturn(101L);
 
         ResponseEntity<Map<String, Object>> response = controller.importCustomers(null);
 
         assertEquals(HttpStatus.ACCEPTED, response.getStatusCode());
         assertEquals(101L, response.getBody().get("jobExecutionId"));
+        verify(importUseCase).launchImport(isNull());
     }
 
     @Test
@@ -39,12 +41,12 @@ class BatchJobControllerTest {
 
     @Test
     void importCustomersUsesDefaultWhenInputFileIsBlank() throws Exception {
-        when(importUseCase.launchImport("classpath:customers.csv")).thenReturn(103L);
+        when(importUseCase.launchImport("   ")).thenReturn(103L);
 
         ResponseEntity<Map<String, Object>> response = controller.importCustomers("   ");
 
         assertEquals(HttpStatus.ACCEPTED, response.getStatusCode());
-        verify(importUseCase).launchImport("classpath:customers.csv");
+        verify(importUseCase).launchImport("   ");
     }
 
     @Test
