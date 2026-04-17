@@ -89,12 +89,15 @@ public class SpringBatchCustomerImportUseCase implements CustomerImportUseCase {
      * executions from the database, so {@link JobExecution#getAllFailureExceptions()} is usually
      * empty after a restart or when polling another process. Exit descriptions on the job and
      * failed steps are persisted and are the reliable source for API consumers.
+     * The job-level exit description is only used when the job {@link BatchStatus} is
+     * {@link BatchStatus#FAILED}; other statuses may still carry a custom exit description
+     * (for example after a stop) which must not be reported as a failure.
      */
     private static List<String> resolveFailureMessages(JobExecution execution) {
         Set<String> messages = new LinkedHashSet<>();
 
         ExitStatus jobExit = execution.getExitStatus();
-        if (jobExit != null) {
+        if (jobExit != null && execution.getStatus() == BatchStatus.FAILED) {
             addNonBlank(messages, jobExit.getExitDescription());
         }
 
