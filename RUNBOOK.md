@@ -10,7 +10,7 @@ This repo uses the Maven Wrapper: `./mvnw`.
 
 ### 1.1) Optional: Slidev architecture deck
 
-Optional Slidev deck: use a local `slidev/` checkout (the folder is **gitignored**). From that directory: `npm install`, then `npm run dev` to preview. See `slidev/README.md` and `slidev/PRESENTATION.md` when present.
+Optional Slidev deck: on **`onion-spring-batch-01`**, `slidev/` is tracked in git; from that directory run `npm install`, then `npm run dev` to preview. See `slidev/README.md` when present.
 
 ## 2) Oracle XE in Docker
 
@@ -103,7 +103,7 @@ curl "http://localhost:8080/api/batch/customer/import/1/status"
 # → 200  {"jobExecutionId":1,"status":"COMPLETED","failures":[],"readCount":6,"writeCount":5,"skipCount":0}
 ```
 
-Status values: `STARTING` → `STARTED` → `COMPLETED` or `FAILED`. Returns 404 for unknown IDs.
+Status values: `STARTING` → `STARTED` → `COMPLETED` or `FAILED`. Returns **404** for unknown IDs. When `status` is **`FAILED`**, the API returns **500** with the same **`CustomerImportResult`** JSON body (counters + `failures`) so clients can still parse the payload while HTTP status reflects hard failure.
 
 When `status` is `FAILED`, the `failures` list is filled from **persisted** Spring Batch exit messages on the job and on any failed steps (the same text stored in batch metadata and visible after a process restart). It is not derived from transient in-memory exception lists, so polling remains accurate across JVMs.
 
@@ -186,14 +186,17 @@ ORDER BY JOB_EXECUTION_ID DESC;
 3. Infrastructure uses `JobExplorer` to look up the `JobExecution` and its `StepExecution` counts
 4. Returns `{status, readCount, writeCount, skipCount, failures}`
 
-### 7.3 Key code locations
+### 7.4 Key code locations
 
 - Presentation (API): `.../presentation/api/BatchJobController.java`
-- Application use-case: `.../application/customer/CustomerImportUseCase.java`
+- Application use-case + result DTO: `.../application/customer/CustomerImportUseCase.java`, `.../application/customer/CustomerImportResult.java`
+- Persistence port: `.../application/customer/port/CustomerUpsertPort.java`
 - Job/Step wiring: `.../infrastructure/batch/CustomerImportJobConfig.java`
 - Reader: `.../infrastructure/batch/CustomerCsvItemReaderConfig.java`
 - Processor adapter: `.../infrastructure/batch/CustomerItemProcessorAdapter.java`
-- Writer: `.../infrastructure/persistence/OracleCustomerWriterConfig.java`
+- Batch writer adapter: `.../infrastructure/batch/CustomerUpsertItemWriterAdapter.java`
+- Oracle MERGE: `.../infrastructure/persistence/OracleCustomerUpsertPortAdapter.java`
+- Async launcher: `.../infrastructure/config/AsyncJobLauncherConfig.java`
 - Listener logs: `.../infrastructure/batch/JobCompletionListener.java`
 
 ## 8) Tests
@@ -269,12 +272,18 @@ See `SD-ARCHITECTURE.md` for the target package structure and refactor plan, whi
 - Cause: Lombok's `@RequiredArgsConstructor` does **not** propagate `@Qualifier` annotations from fields to constructor parameters. So `@Qualifier("customerJob")` on a field is silently ignored in the generated constructor.
 - Fix: Replace `@RequiredArgsConstructor` with an explicit constructor and put `@Qualifier("customerJob")` on the constructor parameter.
 
-### Controller returns 200 OK for a FAILED job
-- Symptom: A batch job fails but the API response is `200 OK` instead of `500 Internal Server Error`.
-- Cause: The original condition was `!result.failures().isEmpty() && "FAILED".equals(...)`, requiring **both** a non-empty failures list and FAILED status. A job can fail without populating the failures list (e.g. exception before any rows are processed).
-- Fix: Check only `"FAILED".equalsIgnoreCase(result.status())` to determine the HTTP response code.
+### Controller returns 200 OK for a FAILED job (regression check)
+- **Current code**: `GET .../status` returns **500** when `status` is **`FAILED`** (same JSON body), and **200** for other terminal states.
+- If you ever see **200** for `FAILED` again, a regression reintroduced filtering on `failures` instead of **status alone** — a job can fail with an **empty** `failures` list.
 
 ### `mvn clean install` fails with Byte Buddy / Mockito errors
 - Ensure you are running with **Java 21** (`java -version`). Java 25+ triggers Byte Buddy incompatibilities.
 - The subclass mock maker (`src/test/resources/mockito-extensions/org.mockito.plugins.MockMaker`) should already be in place.
 - If using Java 25+, Mockito `5.23.0` with `mock-maker-subclass` is required (already configured in `pom.xml`).
+
+### Startup logs: `BeanPostProcessorChecker` / “not eligible for getting processed by all BeanPostProcessors”
+
+- You may see **WARN** lines mentioning `JobRegistryBeanPostProcessor`, `dataSource`, or `transactionManager` during context refresh when **Spring Batch auto-configuration** registers batch infrastructure **early** relative to datasource beans.
+- On Spring Boot **3.2.x** with the default Batch + JDBC stack, these messages are usually **benign** if the application still reaches **`Started SpringBatchDemoApplication`** and jobs run normally.
+- If startup **fails**, treat the **first ERROR** or `APPLICATION FAILED TO START` block as the real cause (port in use, bad JDBC URL, missing driver), not these warnings alone.
+- Optional: upgrade Spring Boot / Spring Batch when newer releases tighten initialization order; see Spring Boot issue tracker for “Batch” + “BeanPostProcessor” if you need upstream context.

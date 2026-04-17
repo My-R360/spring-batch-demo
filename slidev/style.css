@@ -1,0 +1,56 @@
+/**
+ * Slidev UX tweaks for this deck:
+ * 1) Pan the slide viewport (#slide-container) when content exceeds the window.
+ * 2) Main slide (#slide-content) uses overflow: visible so tall Mermaid SVGs are not clipped to
+ *    the fixed slide frame — combined with setup/mermaid.ts (useMaxWidth), diagrams shrink to
+ *    slide width and extend in height; zoom scales the canvas; outer scroll shows the full graph.
+ * 3) Goto autocomplete hidden when the Goto input is disabled.
+ * 4) User zoom: --deck-user-zoom on #slide-content (global-top.vue); Ctrl/⌘ or Alt + wheel.
+ *
+ * Slidev loads ./style.css next to slides.md automatically.
+ */
+
+:root {
+  /* Multiplier for whole slide canvas; updated by global-top.vue (wheel + buttons) */
+  --deck-user-zoom: 1;
+}
+
+/* --- Pan the slide viewport (both axes) when content or zoom exceeds window --- */
+#slide-container.slidev-slide-container {
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+}
+
+/* --- Main slide: no inner clip — pan/zoom at #slide-container so full diagrams can be seen --- */
+#slide-content.slidev-slide-content {
+  overflow: visible !important;
+  zoom: var(--deck-user-zoom);
+}
+
+/*
+ * Mermaid renders into an open shadow root; styling the host constrains width so
+ * Mermaid's useMaxWidth (see setup/mermaid.ts) can scale the SVG to the slide.
+ */
+#slide-content .mermaid {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* --- Non-main slide surfaces (e.g. thumbnails): keep inner scroll if needed --- */
+.slidev-slide-content:not(#slide-content) {
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* --- Goto panel: hide slide list when dialog is closed (input disabled) --- */
+#slidev-goto-dialog:has(#slidev-goto-input:disabled) .autocomplete-list {
+  display: none !important;
+}
+
+#slidev-goto-dialog:has(#slidev-goto-input:disabled) {
+  pointer-events: none;
+}

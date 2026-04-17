@@ -70,14 +70,16 @@ curl "http://localhost:8080/api/batch/customer/import/1/status"
 # → 200  {"jobExecutionId":1,"status":"COMPLETED","failures":[],"readCount":6,"writeCount":5,"skipCount":0}
 ```
 
-While the job is running, `status` will be `STARTED`. When done, it will be `COMPLETED` or `FAILED`.
+While the job is running, `status` will be `STARTED`. When done, it will be `COMPLETED` or `FAILED`. If the job **failed**, the same JSON shape is returned with **HTTP 500** so monitors can alert while scripts still read `failures` and counts.
 
 ## Project structure (high level)
 
 - **Presentation (API)**: `.../presentation/api/BatchJobController.java`
-- **Application (use-case)**:
+- **Application (use-case + result DTO)**:
   - `.../application/customer/CustomerImportUseCase.java`
-  - `.../application/customer/CustomerImportResult.java`
+  - `.../application/customer/CustomerImportResult.java` (job / polling record, not domain)
+  - `.../application/customer/CustomerImportDefaults.java` (default CSV location)
+  - `.../application/customer/port/CustomerUpsertPort.java`
 - **Domain (model + policy)**:
   - `.../domain/customer/Customer.java`
   - `.../domain/customer/CustomerImportPolicy.java`
@@ -85,7 +87,9 @@ While the job is running, `status` will be `STARTED`. When done, it will be `COM
   - Job/step wiring: `.../infrastructure/batch/CustomerImportJobConfig.java`
   - Reader (CSV): `.../infrastructure/batch/CustomerCsvItemReaderConfig.java`
   - Processor adapter: `.../infrastructure/batch/CustomerItemProcessorAdapter.java`
-  - Writer (Oracle MERGE): `.../infrastructure/persistence/OracleCustomerWriterConfig.java`
+  - Batch writer adapter (chunk → port): `.../infrastructure/batch/CustomerUpsertItemWriterAdapter.java`
+  - Oracle MERGE upsert: `.../infrastructure/persistence/OracleCustomerUpsertPortAdapter.java`
+  - Async launcher: `.../infrastructure/config/AsyncJobLauncherConfig.java`
   - Listener logs: `.../infrastructure/batch/JobCompletionListener.java`
   - Dev DB diagnostics: `.../infrastructure/diagnostics/DevStartupDiagnostics.java`
 - **Schema init**: `src/main/resources/schema.sql`
@@ -128,4 +132,4 @@ See `RUNBOOK.md` for a detailed, step-by-step explanation and troubleshooting ti
 
 ## Slide deck (Slidev)
 
-Optional **Slidev** deck (Mermaid, async + fault-tolerance paths): keep a local `slidev/` directory (that path is **gitignored**—not pushed). See `slidev/README.md` for `npm install` / `npm run dev` when you have a copy.
+Optional **Slidev** deck (Mermaid, async + fault-tolerance paths): on branch **`onion-spring-batch-01`**, `slidev/` is **versioned** in git; on other branches it may still be ignored—see `slidev/README.md` for `npm install` / `npm run dev`.
