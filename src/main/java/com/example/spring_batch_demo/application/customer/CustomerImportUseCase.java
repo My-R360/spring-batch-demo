@@ -7,16 +7,22 @@ package com.example.spring_batch_demo.application.customer;
  * (e.g. REST controllers) depend only on this interface.
  */
 public interface CustomerImportUseCase {
+
     /**
-     * Launches an import run.
+     * Launches an import asynchronously and returns the job execution ID immediately.
      *
-     * <p>In this project, the default implementation delegates to Spring Batch (infrastructure).
-     * The input is a Spring Resource location string so callers can reference either classpath or
-     * filesystem files.</p>
-     *
-     * @param inputFile resource location (e.g. {@code classpath:customers.csv} or {@code file:/...})
-     * @return an immutable result containing execution id, status, and failure messages
+     * @param inputFile resource location (e.g. {@link CustomerImportDefaults#DEFAULT_INPUT_RESOURCE_LOCATION}
+     * or {@code file:/...}); null or blank uses that default
+     * @return the Spring Batch {@code jobExecutionId} that can be used to poll status
      */
-    CustomerImportResult importCustomers(String inputFile) throws Exception;
+    Long launchImport(String inputFile) throws Exception;
+
+    /**
+     * Queries the current status/progress of a previously launched import.
+     *
+     * @param jobExecutionId the ID returned by {@link #launchImport}
+     * @return an immutable result with execution status, progress counts, and failure messages
+     */
+    CustomerImportResult getImportStatus(Long jobExecutionId);
 }
 

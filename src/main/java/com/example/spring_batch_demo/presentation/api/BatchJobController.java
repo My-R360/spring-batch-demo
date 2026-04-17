@@ -1,12 +1,15 @@
 package com.example.spring_batch_demo.presentation.api;
 
-import java.util.Optional;
+import java.util.Map;
 
 import com.example.spring_batch_demo.application.customer.CustomerImportResult;
 import com.example.spring_batch_demo.application.customer.CustomerImportUseCase;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -21,35 +24,35 @@ public class BatchJobController {
     private final CustomerImportUseCase importUseCase;
 
     /**
-     * Triggers the customer import job.
+     * Launches the customer import job asynchronously.
      *
-     * <p>This is the outermost "presentation" entrypoint. It validates/normalizes request parameters
-     * and delegates the actual work to the application use-case.</p>
-     *
-     * @param inputFile optional Spring {@code Resource} location. Examples:
-     *                 {@code classpath:customers.csv}, {@code classpath:customers-01.csv},
-     *                 {@code file:/Users/you/customers.csv}
+     * <p>Returns 202 Accepted immediately with the {@code jobExecutionId}.
+     * Callers can poll {@code GET .../status} to track progress.</p>
      */
     @PostMapping("/customer/import")
-    public ResponseEntity<String> importCustomers(
+    public ResponseEntity<Map<String, Object>> importCustomers(
             @RequestParam(name = "inputFile", required = false) String inputFile
     ) throws Exception {
-        String resolvedInput = Optional.ofNullable(inputFile).filter(s -> !s.isBlank()).orElse("classpath:customers.csv");
-        log.info("Import API called. inputFile={}", resolvedInput);
+        log.info("Import API called. inputFile={}", inputFile);
 
-        CustomerImportResult result = importUseCase.importCustomers(resolvedInput);
+        Long jobExecutionId = importUseCase.launchImport(inputFile);
+        log.info("Import job launched. jobExecutionId={}", jobExecutionId);
 
-        String message = "jobExecutionId=" + result.jobExecutionId()
-                + " status=" + result.status()
-                + (result.failures().isEmpty() ? "" : " failures=" + String.join(" | ", result.failures()));
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(Map.of("jobExecutionId", jobExecutionId));
+    }
 
-        if ("FAILED".equalsIgnoreCase(result.status())) {
-            log.error("Import job failed. {}", message);
-            return ResponseEntity.internalServerError().body(message);
+    /**
+     * Returns the current status and progress of a previously launched import job.
+     */
+    @GetMapping("/customer/import/{jobExecutionId}/status")
+    public ResponseEntity<CustomerImportResult> getImportStatus(
+            @PathVariable Long jobExecutionId
+    ) {
+        CustomerImportResult result = importUseCase.getImportStatus(jobExecutionId);
+        if (result == null) {
+            return ResponseEntity.notFound().build();
         }
-
-        log.info("Import job finished. {}", message);
-        return ResponseEntity.ok(message);
+        return ResponseEntity.ok(result);
     }
 }
-

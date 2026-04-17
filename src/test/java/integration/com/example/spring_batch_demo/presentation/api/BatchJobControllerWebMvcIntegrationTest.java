@@ -11,10 +11,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.example.spring_batch_demo.application.customer.CustomerImportResult;
 import com.example.spring_batch_demo.application.customer.CustomerImportUseCase;
 
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(BatchJobController.class)
 class BatchJobControllerWebMvcIntegrationTest {
@@ -26,22 +27,44 @@ class BatchJobControllerWebMvcIntegrationTest {
     private CustomerImportUseCase useCase;
 
     @Test
-    void postImportReturnsOkForCompletedResult() throws Exception {
-        when(useCase.importCustomers("classpath:customers.csv"))
-                .thenReturn(new CustomerImportResult(33L, "COMPLETED", List.of()));
+    void postImportReturnsAcceptedWithJobExecutionId() throws Exception {
+        when(useCase.launchImport(nullable(String.class))).thenReturn(33L);
 
         mockMvc.perform(post("/api/batch/customer/import"))
-                .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("jobExecutionId=33")));
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.jobExecutionId").value(33));
     }
 
     @Test
-    void postImportReturnsInternalServerErrorForFailedResult() throws Exception {
-        when(useCase.importCustomers("classpath:customers.csv"))
-                .thenReturn(new CustomerImportResult(34L, "FAILED", List.of("db error")));
+    void getStatusReturnsCompletedResult() throws Exception {
+        when(useCase.getImportStatus(33L))
+                .thenReturn(new CustomerImportResult(33L, "COMPLETED", List.of(), 10L, 8L, 2L));
 
-        mockMvc.perform(post("/api/batch/customer/import"))
-                .andExpect(status().isInternalServerError())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("FAILED")));
+        mockMvc.perform(get("/api/batch/customer/import/33/status"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.jobExecutionId").value(33))
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.readCount").value(10))
+                .andExpect(jsonPath("$.writeCount").value(8))
+                .andExpect(jsonPath("$.skipCount").value(2));
+    }
+
+    @Test
+    void getStatusReturnsNotFoundForUnknownId() throws Exception {
+        when(useCase.getImportStatus(999L)).thenReturn(null);
+
+        mockMvc.perform(get("/api/batch/customer/import/999/status"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void getStatusReturnsInProgressJob() throws Exception {
+        when(useCase.getImportStatus(50L))
+                .thenReturn(new CustomerImportResult(50L, "STARTED", List.of(), 5L, 3L, 0L));
+
+        mockMvc.perform(get("/api/batch/customer/import/50/status"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("STARTED"))
+                .andExpect(jsonPath("$.readCount").value(5));
     }
 }

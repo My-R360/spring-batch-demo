@@ -29,25 +29,32 @@ Dependency rule:
 
 - Code may depend **only inward**, never outward (domain must not import Spring Batch classes).
 
+**DTOs on use-case contracts:** Types such as `CustomerImportResult` live in **application** because they are the **return shape** of `CustomerImportUseCase`. Infrastructure implementations (e.g. `SpringBatchCustomerImportUseCase`) **construct** those records to satisfy the interface — that is still an inward dependency (infra → application API), not application “calling down” into infra.
+
+They are **not** domain models: they carry **job / polling** concerns (`BatchStatus`, read/skip/write counters). **`Customer`** stays in **domain** as the business row shape.
+
 ## Current code mapping (as-is)
 
 Today, the project is functional and has been refactored into onion-style layers. Key files:
 
 - Presentation:
-  - `presentation/api/BatchJobController.java` (HTTP → calls application use-case)
+  - `presentation/api/BatchJobController.java` (POST → 202 async launch; GET → poll status)
 - Application:
-  - `application/customer/CustomerImportUseCase.java`
-  - `application/customer/CustomerImportResult.java`
+  - `application/customer/CustomerImportUseCase.java` (`launchImport` + `getImportStatus`)
+  - `application/customer/CustomerImportResult.java` (includes progress counts)
+  - `application/customer/port/CustomerUpsertPort.java`
 - Domain:
   - `domain/customer/Customer.java`
   - `domain/customer/CustomerImportPolicy.java`
   - `domain/customer/EmailAndNameCustomerImportPolicy.java`
-- Infrastructure (batch + persistence + diagnostics):
-  - `infrastructure/batch/CustomerImportJobConfig.java`
+- Infrastructure (batch + persistence + config + diagnostics):
+  - `infrastructure/batch/CustomerImportJobConfig.java` (fault-tolerant step with retry + skip + backoff)
+  - `infrastructure/batch/SpringBatchCustomerImportUseCase.java` (async launch via JobLauncher, status via JobExplorer)
   - `infrastructure/batch/CustomerCsvItemReaderConfig.java`
   - `infrastructure/batch/CustomerItemProcessorAdapter.java`
-  - `infrastructure/persistence/OracleCustomerWriterConfig.java`
-  - `infrastructure/batch/JobCompletionListener.java`
+  - `infrastructure/batch/JobCompletionListener.java` (logs per-step counts)
+  - `infrastructure/config/AsyncJobLauncherConfig.java` (async TaskExecutor for JobLauncher)
+  - `infrastructure/persistence/OracleCustomerUpsertPortAdapter.java`
   - `infrastructure/diagnostics/DevStartupDiagnostics.java`
 
 ## Target package structure (approved direction)
@@ -75,9 +82,14 @@ com.example.spring_batch_demo
 │   │   ├── CustomerImportJobConfig.java
 │   │   ├── CustomerCsvItemReaderConfig.java
 │   │   ├── CustomerItemProcessorAdapter.java
+│   │   ├── SpringBatchCustomerImportUseCase.java
 │   │   └── JobCompletionListener.java
+│   ├── config
+│   │   ├── AsyncJobLauncherConfig.java
+│   │   ├── JdbcConfig.java
+│   │   └── DomainPolicyConfig.java
 │   ├── persistence
-│   │   └── OracleCustomerUpsertAdapter.java
+│   │   └── OracleCustomerUpsertPortAdapter.java
 │   └── diagnostics
 │       └── DevStartupDiagnostics.java
 │
@@ -93,12 +105,22 @@ Notes:
 
 ## Data flow (high level)
 
-1. HTTP request → `presentation.api.BatchJobController`
-2. Controller calls the application use-case (or launches job via a small application service)
-3. Batch job executes:
-   - Reader reads CSV → produces `domain.customer.Customer`
+### Launch (async)
+1. HTTP POST → `BatchJobController` → `CustomerImportUseCase.launchImport()`
+2. Async `JobLauncher` starts the job in a background thread
+3. Controller returns **202 Accepted** with `{jobExecutionId}`
+
+### Execution (fault-tolerant)
+4. Batch job runs `customerStep` in chunks of 10:
+   - Reader reads CSV → produces `Customer`
    - Processor delegates to domain policy → returns Customer or filters
    - Writer uses application port → infrastructure adapter upserts to Oracle
+   - **Retry**: transient DB errors retried 3x with exponential backoff
+   - **Skip**: malformed CSV rows skipped (up to 100)
+
+### Status polling
+5. HTTP GET → `BatchJobController` → `CustomerImportUseCase.getImportStatus()`
+6. `JobExplorer` reads `JobExecution` + `StepExecution` counts → returns progress
 
 ## Refactor plan (high level)
 

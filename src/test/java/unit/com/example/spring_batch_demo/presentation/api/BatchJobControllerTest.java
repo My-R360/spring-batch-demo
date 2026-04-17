@@ -1,6 +1,7 @@
 package com.example.spring_batch_demo.presentation.api;
 
 import java.util.List;
+import java.util.Map;
 
 import com.example.spring_batch_demo.application.customer.CustomerImportResult;
 import com.example.spring_batch_demo.application.customer.CustomerImportUseCase;
@@ -8,60 +9,74 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.*;
 
 class BatchJobControllerTest {
 
-    @Test
-    void importCustomersReturnsInternalServerErrorWhenStatusIsFailedEvenWithoutFailures() throws Exception {
-        CustomerImportUseCase importUseCase = mock(CustomerImportUseCase.class);
-        BatchJobController controller = new BatchJobController(importUseCase);
-        when(importUseCase.importCustomers("classpath:customers.csv"))
-                .thenReturn(new CustomerImportResult(101L, "FAILED", List.of()));
-
-        ResponseEntity<String> response = controller.importCustomers(null);
-
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
-    }
+    private final CustomerImportUseCase importUseCase = mock(CustomerImportUseCase.class);
+    private final BatchJobController controller = new BatchJobController(importUseCase);
 
     @Test
-    void importCustomersReturnsOkWhenStatusIsCompletedEvenWithFailureMessages() throws Exception {
-        CustomerImportUseCase importUseCase = mock(CustomerImportUseCase.class);
-        BatchJobController controller = new BatchJobController(importUseCase);
-        when(importUseCase.importCustomers("classpath:customers.csv"))
-                .thenReturn(new CustomerImportResult(102L, "COMPLETED", List.of("row 5 invalid")));
+    void importCustomersReturnsAcceptedWithJobExecutionId() throws Exception {
+        when(importUseCase.launchImport(isNull())).thenReturn(101L);
 
-        ResponseEntity<String> response = controller.importCustomers(null);
+        ResponseEntity<Map<String, Object>> response = controller.importCustomers(null);
 
-        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(HttpStatus.ACCEPTED, response.getStatusCode());
+        assertEquals(101L, response.getBody().get("jobExecutionId"));
+        verify(importUseCase).launchImport(isNull());
     }
 
     @Test
     void importCustomersUsesProvidedInputFile() throws Exception {
-        CustomerImportUseCase importUseCase = mock(CustomerImportUseCase.class);
-        BatchJobController controller = new BatchJobController(importUseCase);
-        when(importUseCase.importCustomers("classpath:customers-01.csv"))
-                .thenReturn(new CustomerImportResult(103L, "COMPLETED", List.of()));
+        when(importUseCase.launchImport("classpath:customers-01.csv")).thenReturn(102L);
 
-        ResponseEntity<String> response = controller.importCustomers("classpath:customers-01.csv");
+        ResponseEntity<Map<String, Object>> response = controller.importCustomers("classpath:customers-01.csv");
 
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        verify(importUseCase).importCustomers("classpath:customers-01.csv");
+        assertEquals(HttpStatus.ACCEPTED, response.getStatusCode());
+        verify(importUseCase).launchImport("classpath:customers-01.csv");
     }
 
     @Test
     void importCustomersUsesDefaultWhenInputFileIsBlank() throws Exception {
-        CustomerImportUseCase importUseCase = mock(CustomerImportUseCase.class);
-        BatchJobController controller = new BatchJobController(importUseCase);
-        when(importUseCase.importCustomers("classpath:customers.csv"))
-                .thenReturn(new CustomerImportResult(104L, "COMPLETED", List.of()));
+        when(importUseCase.launchImport("   ")).thenReturn(103L);
 
-        ResponseEntity<String> response = controller.importCustomers("   ");
+        ResponseEntity<Map<String, Object>> response = controller.importCustomers("   ");
+
+        assertEquals(HttpStatus.ACCEPTED, response.getStatusCode());
+        verify(importUseCase).launchImport("   ");
+    }
+
+    @Test
+    void getImportStatusReturnsResultWhenFound() {
+        CustomerImportResult result = new CustomerImportResult(50L, "COMPLETED", List.of(), 10L, 8L, 2L);
+        when(importUseCase.getImportStatus(50L)).thenReturn(result);
+
+        ResponseEntity<CustomerImportResult> response = controller.getImportStatus(50L);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        verify(importUseCase).importCustomers("classpath:customers.csv");
+        assertEquals(result, response.getBody());
+    }
+
+    @Test
+    void getImportStatusReturnsNotFoundWhenMissing() {
+        when(importUseCase.getImportStatus(999L)).thenReturn(null);
+
+        ResponseEntity<CustomerImportResult> response = controller.getImportStatus(999L);
+
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+    }
+
+    @Test
+    void getImportStatusReturnsInProgressJob() {
+        CustomerImportResult result = new CustomerImportResult(60L, "STARTED", List.of(), 5L, 3L, 0L);
+        when(importUseCase.getImportStatus(60L)).thenReturn(result);
+
+        ResponseEntity<CustomerImportResult> response = controller.getImportStatus(60L);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("STARTED", response.getBody().status());
     }
 }

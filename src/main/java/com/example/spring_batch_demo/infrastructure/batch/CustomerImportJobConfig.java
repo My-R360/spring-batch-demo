@@ -10,8 +10,11 @@ import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.file.FlatFileItemReader;
+import org.springframework.batch.item.file.FlatFileParseException;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.dao.TransientDataAccessException;
+import org.springframework.retry.backoff.ExponentialBackOffPolicy;
 import org.springframework.transaction.PlatformTransactionManager;
 
 @Configuration
@@ -57,18 +60,27 @@ public class CustomerImportJobConfig {
     }
 
     /**
-     * Single step for this demo job.
-     *
-     * <p>Chunk size 10 means: read+process up to 10 items, then write them in one transaction.</p>
+     * Fault-tolerant step: retries transient DB errors with exponential backoff,
+     * skips malformed CSV rows up to a configurable limit.
      */
     @Bean
     public Step customerStep() {
+        ExponentialBackOffPolicy backOff = new ExponentialBackOffPolicy();
+        backOff.setInitialInterval(1000L);
+        backOff.setMultiplier(2.0);
+        backOff.setMaxInterval(8000L);
+
         return new StepBuilder("customerStep", jobRepository)
                 .<Customer, Customer>chunk(10, transactionManager)
                 .reader(reader)
                 .processor(processor)
                 .writer(writer)
+                .faultTolerant()
+                .retry(TransientDataAccessException.class)
+                .retryLimit(3)
+                .backOffPolicy(backOff)
+                .skip(FlatFileParseException.class)
+                .skipLimit(100)
                 .build();
     }
 }
-

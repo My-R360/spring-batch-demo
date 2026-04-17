@@ -55,6 +55,7 @@ This document explains key design choices and where they appear in the current o
 
 - Framework controls chunk algorithm: read -> process -> write.
 - Project provides reader/processor/writer implementations.
+- Fault-tolerant step adds retry + skip policies around the chunk loop.
 
 ### Builder
 
@@ -63,8 +64,31 @@ This document explains key design choices and where they appear in the current o
 
 ### Observer/Listener
 
-- `JobCompletionListener` logs before/after job lifecycle events.
+- `JobCompletionListener` logs before/after job lifecycle events including per-step read/write/skip/rollback/commit counts.
   - `src/main/java/com/example/spring_batch_demo/infrastructure/batch/JobCompletionListener.java`
+
+### Async execution (Phase 1)
+
+- `AsyncJobLauncherConfig` provides a `TaskExecutorJobLauncher` with `SimpleAsyncTaskExecutor` so that `JobLauncher.run()` returns immediately while the job executes in a background thread.
+  - `src/main/java/com/example/spring_batch_demo/infrastructure/config/AsyncJobLauncherConfig.java`
+- The use-case interface is split into `launchImport` (fire-and-forget, returns `jobExecutionId`) and `getImportStatus` (reads progress via `JobExplorer`).
+- The controller returns **202 Accepted** on POST and exposes a GET status endpoint.
+- `getImportStatus` builds `failures` from persisted **exit descriptions** on the job and on any `FAILED` steps (`JobExecution#getAllFailureExceptions()` is not reloaded from the database when using `JobExplorer`).
+
+### Fault tolerance (Phase 1)
+
+- `customerStep` is configured as fault-tolerant:
+  - **Retry**: `TransientDataAccessException` up to 3 times with exponential backoff (1s initial, 2x multiplier, 8s max).
+  - **Skip**: `FlatFileParseException` (malformed CSV rows) skipped up to 100 per job.
+- This means transient DB hiccups don't kill the job, and bad CSV rows are counted but don't halt processing.
+
+## Constructor injection gotcha: `@Qualifier` + Lombok
+
+Lombok's `@RequiredArgsConstructor` generates a constructor from `final` fields, but it does **not** propagate field-level `@Qualifier` annotations to the constructor parameters. When multiple beans of the same type exist (e.g. multiple `Job` beans), Spring fails with `NoUniqueBeanDefinitionException`.
+
+**Rule**: When a `@Qualifier` is needed, write an explicit constructor instead of relying on `@RequiredArgsConstructor`.
+
+Affected file (fixed): `infrastructure/batch/SpringBatchCustomerImportUseCase.java`
 
 ## Immutable value objects (Java records)
 

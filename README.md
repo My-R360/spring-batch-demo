@@ -8,6 +8,8 @@ This project imports customers from a CSV file into an Oracle database using **S
 - Filters invalid rows (email must contain `@`)
 - Uppercases customer names
 - Writes to Oracle table `CUSTOMER` using an **upsert** (`MERGE`) so reruns do not fail on duplicate IDs
+- **Async API**: POST returns 202 immediately with a `jobExecutionId`; poll status via GET
+- **Fault-tolerant batch step**: retries transient DB errors (3x, exponential backoff), skips malformed CSV rows
 
 ## Prerequisites
 
@@ -38,13 +40,16 @@ The `dev` profile:
 
 ### 3) Trigger import (Postman/curl)
 
+The POST endpoint launches the job **asynchronously** and returns **202 Accepted** immediately.
+
 Default bundled CSV:
 
 ```bash
 curl -X POST "http://localhost:8080/api/batch/customer/import"
+# → 202  {"jobExecutionId": 1}
 ```
 
-Import a different classpath CSV (example: `src/main/resources/customers-01.csv`):
+Import a different classpath CSV:
 
 ```bash
 curl -X POST "http://localhost:8080/api/batch/customer/import?inputFile=classpath:customers-01.csv"
@@ -55,6 +60,17 @@ Import a file from your machine:
 ```bash
 curl -X POST "http://localhost:8080/api/batch/customer/import?inputFile=file:/Users/shubham.s/customers.csv"
 ```
+
+### 4) Poll job status
+
+Use the `jobExecutionId` from the POST response:
+
+```bash
+curl "http://localhost:8080/api/batch/customer/import/1/status"
+# → 200  {"jobExecutionId":1,"status":"COMPLETED","failures":[],"readCount":6,"writeCount":5,"skipCount":0}
+```
+
+While the job is running, `status` will be `STARTED`. When done, it will be `COMPLETED` or `FAILED`.
 
 ## Project structure (high level)
 
@@ -99,7 +115,9 @@ Key test-infrastructure files:
 
 ## Batch flow (conceptual)
 
-HTTP POST → Presentation Controller → Application UseCase → Infrastructure (Spring Batch JobLauncher) → Job → Step → Reader → Processor → Writer → Oracle.
+HTTP POST → 202 Accepted (async) → Presentation Controller → Application UseCase → Infrastructure (Async JobLauncher) → Job → Fault-Tolerant Step (retry + skip) → Reader → Processor → Writer → Oracle.
+
+Poll: GET status → Application UseCase → JobExplorer → progress counts + status.
 
 ## Architecture & design docs
 
@@ -107,3 +125,7 @@ HTTP POST → Presentation Controller → Application UseCase → Infrastructure
 - **Architecture (Onion) & target structure**: `SD-ARCHITECTURE.md`
 
 See `RUNBOOK.md` for a detailed, step-by-step explanation and troubleshooting tips.
+
+## Slide deck (Slidev)
+
+Optional **Slidev** deck (Mermaid, async + fault-tolerance paths): keep a local `slidev/` directory (that path is **gitignored**—not pushed). See `slidev/README.md` for `npm install` / `npm run dev` when you have a copy.
