@@ -26,15 +26,17 @@ Apply consistent implementation patterns for this project (works for **senior** 
 Use this checklist for feature/refactor tasks:
 
 1. Confirm which layer owns the change.
-2. Keep controller thin; delegate to an application use-case.
-3. Put business rules in domain policy/service (framework-free).
-4. Keep Spring Batch/JDBC/Oracle logic in infrastructure adapters/config.
-5. Preserve job/step identity unless migration is deliberate.
-6. Keep writes idempotent for reruns (MERGE/upsert behavior).
-7. Build and verify:
+2. For **non-trivial** edits (multi-file, layer boundaries, ports/adapters, batch wiring), prefer **code-review-graph** (MCP/CLI) for impact before broad plans or wide reads (`.cursor/rules/code-review-graph.mdc`).
+3. Keep controller thin; delegate to an application use-case.
+4. Put business rules in domain policy/service (framework-free).
+5. Keep Spring Batch/JDBC/Oracle logic in infrastructure adapters/config.
+6. Use **explicit Java imports only**—no star imports (`.cursor/rules/java-imports.mdc`).
+7. Preserve job/step identity unless migration is deliberate.
+8. Keep writes idempotent for reruns (MERGE/upsert behavior).
+9. Build and verify:
    - `./mvnw clean package -DskipTests`
-8. Update docs + append `PROMPTS.md` entry.
-9. If `slidev/` is present: refresh `slidev/slides.md` (narrative + Mermaid) for the same behavior change; run `cd slidev && npx slidev build slides.md`.
+10. Update docs + append `PROMPTS.md` entry.
+11. If `slidev/` is present: refresh `slidev/slides.md` (narrative + Mermaid) for the same behavior change; run `cd slidev && npx slidev build slides.md`.
 
 ## Debug workflow
 

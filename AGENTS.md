@@ -11,7 +11,7 @@ Spring Batch demo application (Java 21 / Spring Boot 3.2.5) that reads customer 
 This project is being refactored toward **Onion Architecture** while keeping the root package:
 
 - Root package: `com.example.spring_batch_demo`
-- Target layering: domain → application → infrastructure → presentation (dependencies inwards)
+- Target layering (**dependency rule**): dependencies point **inward**. **Domain** is the core; **application** (use-cases + ports) depends on domain; **infrastructure** (Batch, JDBC, adapters) and **presentation** (REST) depend on application/domain — not the reverse.
 
 If you are making changes:
 - Avoid introducing Spring/JDBC/Batch types into domain/application layers.

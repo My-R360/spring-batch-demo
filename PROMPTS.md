@@ -491,6 +491,38 @@ These can be done alongside any phase:
 
 ---
 
+### 25) Cursor rules: explicit Java imports + graph-first planning
+
+- **Prompt summary**: Rule—never star imports, import only what is used; leverage code-review-graph before planning when it helps; extend graph guidance if needed.
+- **Changes done**:
+  - **`.cursor/rules/java-imports.mdc`**: forbid `import …*` and `import static …*`; require explicit types and static members (main + test).
+  - **`.cursor/rules/code-review-graph.mdc`**: “Planning workflow (prefer first)” — query the graph before broad plans on non-trivial work; MCP/CLI first for impact; supplement for Spring/runtime gaps; refresh after substantive edits when CLI exists.
+- **Outcome**: Default to scoped dependency discovery and explicit imports. (Existing tests may still use star static imports until cleaned up voluntarily.)
+
+---
+
+### 26) Repo-wide doc + API correctness pass
+
+- **Prompt summary**: Re-verify code and documentation for quality and correctness everywhere.
+- **Changes done**:
+  - **Docs**: Fixed non-existent `OracleCustomerWriterConfig` references in `README.md` / `RUNBOOK.md`; listed `CustomerUpsertItemWriterAdapter`, `OracleCustomerUpsertPortAdapter`, `AsyncJobLauncherConfig`, ports, and defaults; clarified GET status **404 / 500 / 200** in `RUNBOOK.md`, `README.md`, `SD-ARCHITECTURE.md`, `SD-DESIGN.md`; deduped RUNBOOK §7.3 → **§7.4** for key file paths; extended `SD-ARCHITECTURE` target tree + current mapping.
+  - **`AGENTS.md`**: Clarified onion **dependency rule** (inward), not a misleading linear layer list.
+  - **Code**: `BatchJobController` — **`FAILED`** job status → **500** with same `CustomerImportResult` body (aligned with `RUNBOOK` + `ROADMAP.md`); Javadoc updated. Tests: `BatchJobControllerTest`, `BatchJobControllerWebMvcIntegrationTest`.
+- **Outcome**: Docs match the Java tree; status endpoint behavior matches operational docs.
+
+---
+
+### 27) Remaining gaps — tests imports, startup WARN docs, Slidev
+
+- **Prompt summary**: Finish prior “remaining gaps”: no star static imports in tests; document Batch `BeanPostProcessorChecker` WARNs; add/sync Slidev deck.
+- **Changes done**:
+  - **Tests**: Replaced all `import static …*` with explicit JUnit / Mockito / MockMvc static imports across `src/test/java`.
+  - **Docs**: `RUNBOOK.md` troubleshooting for startup WARNs; `SD-DESIGN.md` “Startup logging”; tightened FAILED-job troubleshooting to match current controller.
+  - **Slidev**: Added `slidev/slides.md`, `slidev/package.json`, `slidev/README.md`. **Resume fix:** npm no longer publishes a top-level `slidev` package at `0.49.29` — switched to **`@slidev/cli@52.14.2`** + **`@slidev/theme-default@0.25.0`**; `npm install` + `npx slidev build slides.md` succeeds.
+- **Outcome**: Deck builds; test imports match `.cursor/rules/java-imports.mdc`; operators have a place to read about benign Batch/JDBC WARN noise.
+
+---
+
 ### Phase dependency graph
 
 ```

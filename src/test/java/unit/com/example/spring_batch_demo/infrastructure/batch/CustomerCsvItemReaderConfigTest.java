@@ -10,7 +10,8 @@ import org.springframework.core.io.DefaultResourceLoader;
 
 import com.example.spring_batch_demo.domain.customer.Customer;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class CustomerCsvItemReaderConfigTest {
 

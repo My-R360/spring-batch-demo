@@ -20,4 +20,4 @@ npm run build
 
 Dependencies use **`@slidev/cli`** (the `slidev` package name on npm was retired in favor of scoped packages). Theme: **`@slidev/theme-default`** (pin compatible with your CLI major if the build ever drifts).
 
-> **Note:** On branch **`onion-spring-batch-01`**, this folder is **tracked** in git (root `.gitignore` does not exclude `slidev/`). On other branches the repo may still ignore `slidev/`—merge `.gitignore` intentionally. Keep the deck updated when API, batch, or layer boundaries change.
+> **Note:** `slidev/` is listed in the repo root `.gitignore` (local-only deck). Keep this directory updated when API, batch, or layer boundaries change.

@@ -10,7 +10,7 @@ This repo uses the Maven Wrapper: `./mvnw`.
 
 ### 1.1) Optional: Slidev architecture deck
 
-Optional Slidev deck: on **`onion-spring-batch-01`**, `slidev/` is tracked in git; from that directory run `npm install`, then `npm run dev` to preview. See `slidev/README.md` when present.
+Optional Slidev deck: use a local `slidev/` checkout (the folder is **gitignored**). From that directory: `npm install`, then `npm run dev` to preview. See `slidev/README.md` and `slidev/PRESENTATION.md` when present.
 
 ## 2) Oracle XE in Docker
 

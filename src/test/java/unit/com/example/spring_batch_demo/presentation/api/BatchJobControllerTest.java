@@ -9,9 +9,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.isNull;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class BatchJobControllerTest {
 
@@ -78,5 +80,27 @@ class BatchJobControllerTest {
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals("STARTED", response.getBody().status());
+    }
+
+    @Test
+    void getImportStatusReturnsServerErrorWhenBatchFailed() {
+        CustomerImportResult result = new CustomerImportResult(70L, "FAILED", List.of(), 0L, 0L, 0L);
+        when(importUseCase.getImportStatus(70L)).thenReturn(result);
+
+        ResponseEntity<CustomerImportResult> response = controller.getImportStatus(70L);
+
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+        assertEquals(result, response.getBody());
+    }
+
+    @Test
+    void getImportStatusReturnsServerErrorForFailedIgnoringCase() {
+        CustomerImportResult result = new CustomerImportResult(71L, "failed", List.of("step died"), 1L, 0L, 1L);
+        when(importUseCase.getImportStatus(71L)).thenReturn(result);
+
+        ResponseEntity<CustomerImportResult> response = controller.getImportStatus(71L);
+
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+        assertEquals("failed", response.getBody().status());
     }
 }

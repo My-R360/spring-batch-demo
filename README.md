@@ -132,4 +132,4 @@ See `RUNBOOK.md` for a detailed, step-by-step explanation and troubleshooting ti
 
 ## Slide deck (Slidev)
 
-Optional **Slidev** deck (Mermaid, async + fault-tolerance paths): on branch **`onion-spring-batch-01`**, `slidev/` is **versioned** in git; on other branches it may still be ignored—see `slidev/README.md` for `npm install` / `npm run dev`.
+Optional **Slidev** deck (Mermaid, async + fault-tolerance paths): keep a local `slidev/` directory (that path is **gitignored**—not pushed). See `slidev/README.md` for `npm install` / `npm run dev` when you have a copy.

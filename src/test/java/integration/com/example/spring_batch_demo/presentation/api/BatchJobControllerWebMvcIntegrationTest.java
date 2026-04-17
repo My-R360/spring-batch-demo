@@ -15,7 +15,8 @@ import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(BatchJobController.class)
 class BatchJobControllerWebMvcIntegrationTest {
@@ -66,5 +67,16 @@ class BatchJobControllerWebMvcIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("STARTED"))
                 .andExpect(jsonPath("$.readCount").value(5));
+    }
+
+    @Test
+    void getStatusReturnsInternalServerErrorWhenFailed() throws Exception {
+        when(useCase.getImportStatus(70L))
+                .thenReturn(new CustomerImportResult(70L, "FAILED", List.of("boom"), 0L, 0L, 0L));
+
+        mockMvc.perform(get("/api/batch/customer/import/70/status"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.status").value("FAILED"))
+                .andExpect(jsonPath("$.failures[0]").value("boom"));
     }
 }

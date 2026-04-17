@@ -7,11 +7,16 @@ alwaysApply: true
 
 This repo maintains a Tree-sitter–backed knowledge graph under `.code-review-graph/` (notably `graph.db`). Use it when planning or reviewing **non-trivial code or architectural changes**.
 
-## What to do
+## Planning workflow (prefer first)
 
-- **Before or while changing** layers, ports, batch jobs, or shared types: consider **callers, dependents, imports, and blast radius**—not only the files in the immediate diff.
-- If **MCP / `code-review-graph` tools** are configured in the environment, prefer them for impact queries and minimal context.
-- If not, still apply the same mindset: map **who depends on what** (e.g. application ports, infrastructure adapters, job configs) and call out **risky coupling** or **missing tests** where relevant.
+- For **non-trivial** work (multi-file, layer boundaries, ports/adapters, batch job wiring, renames, shared types), **query the graph before** you settle on a plan or start editing broadly. Use it to list **callers, callees, dependents, and imports** so you scope changes deliberately and pull **minimal extra context** into the session (fewer blind `grep`/wide reads).
+- If **MCP or CLI `code-review-graph`** is available, **prefer it for impact and dependency questions** first; then open only the files the graph points to, plus any framework glue the graph may not see.
+- If tools are **unavailable** or the graph is **stale/wrong**: still map blast radius with search and reading; run **`code-review-graph update --repo .`** (or **`build`**) after substantive edits when the CLI exists so the next pass is accurate.
+- The graph does **not** replace reading critical call sites, tests, or Spring’s runtime wiring when the static model is incomplete—**supplement** with targeted inspection when something looks suspicious or untracked.
+
+## What to do (during and after planning)
+
+- **While changing** layers, ports, batch jobs, or shared types: keep **callers, dependents, imports, and blast radius** in mind—not only the files in the immediate diff.
 - After **large** structural edits, suggest refreshing the graph (see below) so the stored model matches the tree.
 
 ## After changes are done (closing step)
