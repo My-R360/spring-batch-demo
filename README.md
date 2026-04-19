@@ -74,22 +74,6 @@ While the job is running, `status` will be `STARTED`. When done, it will be `COM
 
 ## Project structure (high level)
 
-<<<<<<< HEAD
-- **Presentation (API)**: `.../presentation/api/BatchJobController.java`
-- **Application (use-case)**:
-  - `.../application/customer/CustomerImportUseCase.java`
-  - `.../application/customer/CustomerImportResult.java`
-- **Domain (model + policy)**:
-  - `.../domain/customer/Customer.java`
-  - `.../domain/customer/CustomerImportPolicy.java`
-- **Infrastructure (Spring Batch + JDBC)**:
-  - Job/step wiring: `.../infrastructure/batch/CustomerImportJobConfig.java`
-  - Reader (CSV): `.../infrastructure/batch/CustomerCsvItemReaderConfig.java`
-  - Processor adapter: `.../infrastructure/batch/CustomerItemProcessorAdapter.java`
-  - Writer (Oracle MERGE): `.../infrastructure/persistence/OracleCustomerWriterConfig.java`
-  - Listener logs: `.../infrastructure/batch/JobCompletionListener.java`
-  - Dev DB diagnostics: `.../infrastructure/diagnostics/DevStartupDiagnostics.java`
-=======
 - **Presentation (API)**:
   - `.../presentation/api/BatchJobController.java`
   - `.../presentation/api/exceptions/BatchJobApiExceptionHandler.java` (scoped errors + `ProblemDetail`)
@@ -109,7 +93,6 @@ While the job is running, `status` will be `STARTED`. When done, it will be `COM
   - **Adapters (implementations)**: `.../infrastructure/adapter/batch/` — use-case impl, processor/writer adapters, `JobCompletionListener`; `.../infrastructure/adapter/persistence/OracleCustomerUpsertPortAdapter.java` (Oracle MERGE)
   - **Other config**: `.../infrastructure/config/AsyncJobLauncherConfig.java`, `JdbcConfig`, `DomainPolicyConfig`
   - **Dev DB diagnostics**: `.../infrastructure/diagnostics/DevStartupDiagnostics.java`
->>>>>>> 88afc74 (reordered structure into proper modules)
 - **Schema init**: `src/main/resources/schema.sql`
 - **Sample CSVs**: `src/main/resources/customers.csv`, `src/main/resources/customers-01.csv`
 

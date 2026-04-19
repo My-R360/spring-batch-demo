@@ -188,17 +188,9 @@ ORDER BY JOB_EXECUTION_ID DESC;
 3. Infrastructure uses `JobExplorer` to look up the `JobExecution` and its `StepExecution` counts
 4. Returns `{status, readCount, writeCount, skipCount, failures}`
 
-### 7.3 Key code locations
+### 7.4 Key code locations
 
 - Presentation (API): `.../presentation/api/BatchJobController.java`
-<<<<<<< HEAD
-- Application use-case: `.../application/customer/CustomerImportUseCase.java`
-- Job/Step wiring: `.../infrastructure/batch/CustomerImportJobConfig.java`
-- Reader: `.../infrastructure/batch/CustomerCsvItemReaderConfig.java`
-- Processor adapter: `.../infrastructure/batch/CustomerItemProcessorAdapter.java`
-- Writer: `.../infrastructure/persistence/OracleCustomerWriterConfig.java`
-- Listener logs: `.../infrastructure/batch/JobCompletionListener.java`
-=======
 - Presentation (errors): `.../presentation/api/exceptions/BatchJobApiExceptionHandler.java`
 - Application ports + DTO: `.../application/customer/port/CustomerImportUseCase.java`, `CustomerUpsertPort.java`; `.../application/customer/dto/CustomerImportResult.java`
 - Application import input / errors: `.../application/customer/CustomerImportInputFile.java`; `.../application/customer/exceptions/` (`MissingInputFileException`, `ImportJobLaunchException`)
@@ -212,7 +204,6 @@ ORDER BY JOB_EXECUTION_ID DESC;
 
 - **`CustomerImportJobConfig`**: builds the **`Job`** and fault-tolerant **`Step`** (chunk, retry/skip, listener registration).
 - **`CustomerCsvItemReaderConfig`**: builds the **`@StepScope` `FlatFileItemReader`** so each run can resolve a different `inputFile` job parameter. Kept separate from the job graph for clarity and Spring Batch bean scopes.
->>>>>>> 88afc74 (reordered structure into proper modules)
 
 ## 8) Tests
 
