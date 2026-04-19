@@ -1,6 +1,6 @@
-package com.example.spring_batch_demo.infrastructure.batch;
+package com.example.spring_batch_demo.infrastructure.batch.config;
 
-import com.example.spring_batch_demo.application.customer.CustomerImportDefaults;
+import com.example.spring_batch_demo.application.customer.CustomerImportInputFile;
 import com.example.spring_batch_demo.domain.customer.Customer;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.item.file.FlatFileItemReader;
@@ -22,8 +22,8 @@ public class CustomerCsvItemReaderConfig {
      * runtime (each job execution can point at a different file).</p>
      *
      * <p>The {@code inputFile} value is treated as a Spring {@link org.springframework.core.io.Resource}
-     * location string (e.g. {@link CustomerImportDefaults#DEFAULT_INPUT_RESOURCE_LOCATION}
-     * or {@code file:/...}).</p>
+     * location string (e.g. {@code classpath:customers.csv} or {@code file:/...}). It must be set by
+     * {@code launchImport} (non-blank).</p>
      */
     @Bean
     @StepScope
@@ -31,7 +31,7 @@ public class CustomerCsvItemReaderConfig {
             ResourceLoader resourceLoader,
             @Value("#{jobParameters['inputFile']}") String inputFile
     ) {
-        String location = CustomerImportDefaults.resolveInputFileLocation(inputFile);
+        String location = CustomerImportInputFile.requireJobParameterInputFile(inputFile);
 
         Resource resource = resourceLoader.getResource(location);
 
@@ -50,4 +50,3 @@ public class CustomerCsvItemReaderConfig {
                 .build();
     }
 }
-

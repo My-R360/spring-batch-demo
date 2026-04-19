@@ -1,4 +1,4 @@
-package com.example.spring_batch_demo.infrastructure.batch;
+package com.example.spring_batch_demo.infrastructure.adapter.batch;
 
 import com.example.spring_batch_demo.application.customer.port.CustomerUpsertPort;
 import com.example.spring_batch_demo.domain.customer.Customer;
@@ -25,4 +25,3 @@ public class CustomerUpsertItemWriterAdapter implements ItemWriter<Customer> {
         upsertPort.upsert(chunk.getItems().stream().map(c -> (Customer) c).toList());
     }
 }
-

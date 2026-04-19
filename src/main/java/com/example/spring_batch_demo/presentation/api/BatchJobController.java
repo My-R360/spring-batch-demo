@@ -2,8 +2,9 @@ package com.example.spring_batch_demo.presentation.api;
 
 import java.util.Map;
 
-import com.example.spring_batch_demo.application.customer.CustomerImportResult;
-import com.example.spring_batch_demo.application.customer.CustomerImportUseCase;
+import com.example.spring_batch_demo.application.customer.exceptions.ImportJobLaunchException;
+import com.example.spring_batch_demo.application.customer.dto.CustomerImportResult;
+import com.example.spring_batch_demo.application.customer.port.CustomerImportUseCase;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -28,11 +29,14 @@ public class BatchJobController {
      *
      * <p>Returns 202 Accepted immediately with the {@code jobExecutionId}.
      * Callers can poll {@code GET .../status} to track progress.</p>
+     *
+     * <p>{@code inputFile} is required (non-blank): a Spring {@link org.springframework.core.io.Resource}
+     * location string. Missing or blank values yield 400.</p>
      */
     @PostMapping("/customer/import")
     public ResponseEntity<Map<String, Object>> importCustomers(
             @RequestParam(name = "inputFile", required = false) String inputFile
-    ) throws Exception {
+    ) throws ImportJobLaunchException {
         log.info("Import API called. inputFile={}", inputFile);
 
         Long jobExecutionId = importUseCase.launchImport(inputFile);

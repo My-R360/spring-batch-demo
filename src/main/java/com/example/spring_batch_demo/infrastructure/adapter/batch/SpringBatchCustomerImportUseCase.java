@@ -1,4 +1,4 @@
-package com.example.spring_batch_demo.infrastructure.batch;
+package com.example.spring_batch_demo.infrastructure.adapter.batch;
 
 import java.time.Instant;
 import java.util.Collection;
@@ -6,9 +6,10 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-import com.example.spring_batch_demo.application.customer.CustomerImportDefaults;
-import com.example.spring_batch_demo.application.customer.CustomerImportResult;
-import com.example.spring_batch_demo.application.customer.CustomerImportUseCase;
+import com.example.spring_batch_demo.application.customer.CustomerImportInputFile;
+import com.example.spring_batch_demo.application.customer.exceptions.ImportJobLaunchException;
+import com.example.spring_batch_demo.application.customer.dto.CustomerImportResult;
+import com.example.spring_batch_demo.application.customer.port.CustomerImportUseCase;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.ExitStatus;
@@ -41,8 +42,8 @@ public class SpringBatchCustomerImportUseCase implements CustomerImportUseCase {
     }
 
     @Override
-    public Long launchImport(String inputFile) throws Exception {
-        String resolvedInput = CustomerImportDefaults.resolveInputFileLocation(inputFile);
+    public Long launchImport(String inputFile) throws ImportJobLaunchException {
+        String resolvedInput = CustomerImportInputFile.requireInputFileLocation(inputFile);
 
         log.info("Launching Spring Batch job={} inputFile={}", customerJob.getName(), resolvedInput);
 
@@ -51,9 +52,13 @@ public class SpringBatchCustomerImportUseCase implements CustomerImportUseCase {
                 .addLong("run.at", Instant.now().toEpochMilli())
                 .toJobParameters();
 
-        JobExecution execution = jobLauncher.run(customerJob, params);
-        log.info("Job launched: jobExecutionId={} status={}", execution.getId(), execution.getStatus());
-        return execution.getId();
+        try {
+            JobExecution execution = jobLauncher.run(customerJob, params);
+            log.info("Job launched: jobExecutionId={} status={}", execution.getId(), execution.getStatus());
+            return execution.getId();
+        } catch (Exception e) {
+            throw new ImportJobLaunchException(e.getMessage() != null ? e.getMessage() : "Job launch failed", e);
+        }
     }
 
     @Override

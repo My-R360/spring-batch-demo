@@ -1,7 +1,7 @@
-package com.example.spring_batch_demo.infrastructure.batch;
+package com.example.spring_batch_demo.infrastructure.adapter.batch;
 
 import com.example.spring_batch_demo.domain.customer.Customer;
-import com.example.spring_batch_demo.domain.customer.CustomerImportPolicy;
+import com.example.spring_batch_demo.domain.customer.policy.CustomerImportPolicy;
 import lombok.RequiredArgsConstructor;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.stereotype.Component;
@@ -23,4 +23,3 @@ public class CustomerItemProcessorAdapter implements ItemProcessor<Customer, Cus
         return importPolicy.apply(customer);
     }
 }
-

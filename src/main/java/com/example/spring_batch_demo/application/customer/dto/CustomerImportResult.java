@@ -1,7 +1,10 @@
-package com.example.spring_batch_demo.application.customer;
+package com.example.spring_batch_demo.application.customer.dto;
 
 import java.util.List;
 
+/**
+ * API / polling view of a batch job — not a domain entity (see {@code domain.customer.Customer}).
+ */
 public record CustomerImportResult(
         Long jobExecutionId,
         String status,
@@ -11,4 +14,3 @@ public record CustomerImportResult(
         long skipCount
 ) {
 }
-
