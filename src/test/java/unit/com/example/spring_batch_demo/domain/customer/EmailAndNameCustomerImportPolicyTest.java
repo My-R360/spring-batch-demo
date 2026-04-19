@@ -1,6 +1,5 @@
 package com.example.spring_batch_demo.domain.customer;
 
-import com.example.spring_batch_demo.domain.customer.policy.EmailAndNameCustomerImportPolicy;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

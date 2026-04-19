@@ -3,16 +3,14 @@ package com.example.spring_batch_demo.presentation.api;
 import java.util.List;
 import java.util.Map;
 
-import com.example.spring_batch_demo.application.customer.exceptions.ImportJobLaunchException;
-import com.example.spring_batch_demo.application.customer.exceptions.MissingInputFileException;
-import com.example.spring_batch_demo.application.customer.dto.CustomerImportResult;
-import com.example.spring_batch_demo.application.customer.port.CustomerImportUseCase;
+import com.example.spring_batch_demo.application.customer.CustomerImportResult;
+import com.example.spring_batch_demo.application.customer.CustomerImportUseCase;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -23,16 +21,18 @@ class BatchJobControllerTest {
     private final BatchJobController controller = new BatchJobController(importUseCase);
 
     @Test
-    void importCustomersRejectsMissingInputFile() throws ImportJobLaunchException {
-        when(importUseCase.launchImport(null)).thenThrow(MissingInputFileException.forQueryParameter());
+    void importCustomersReturnsAcceptedWithJobExecutionId() throws Exception {
+        when(importUseCase.launchImport(isNull())).thenReturn(101L);
 
-        assertThrows(MissingInputFileException.class, () -> controller.importCustomers(null));
+        ResponseEntity<Map<String, Object>> response = controller.importCustomers(null);
 
-        verify(importUseCase).launchImport(null);
+        assertEquals(HttpStatus.ACCEPTED, response.getStatusCode());
+        assertEquals(101L, response.getBody().get("jobExecutionId"));
+        verify(importUseCase).launchImport(isNull());
     }
 
     @Test
-    void importCustomersUsesProvidedInputFile() throws ImportJobLaunchException {
+    void importCustomersUsesProvidedInputFile() throws Exception {
         when(importUseCase.launchImport("classpath:customers-01.csv")).thenReturn(102L);
 
         ResponseEntity<Map<String, Object>> response = controller.importCustomers("classpath:customers-01.csv");
@@ -42,11 +42,12 @@ class BatchJobControllerTest {
     }
 
     @Test
-    void importCustomersRejectsBlankInputFile() throws ImportJobLaunchException {
-        when(importUseCase.launchImport("   ")).thenThrow(MissingInputFileException.forQueryParameter());
+    void importCustomersUsesDefaultWhenInputFileIsBlank() throws Exception {
+        when(importUseCase.launchImport("   ")).thenReturn(103L);
 
-        assertThrows(MissingInputFileException.class, () -> controller.importCustomers("   "));
+        ResponseEntity<Map<String, Object>> response = controller.importCustomers("   ");
 
+        assertEquals(HttpStatus.ACCEPTED, response.getStatusCode());
         verify(importUseCase).launchImport("   ");
     }
 

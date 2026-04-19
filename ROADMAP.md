@@ -43,7 +43,7 @@ Phase 1 (async API + batch fault tolerance) ✅
 
 | Item | Status | Notes |
 |------|--------|--------|
-| `POST /api/batch/customer/import?inputFile=…` → **202** + `{ jobExecutionId }` (400 if missing/blank) | ✅ | |
+| `POST /api/batch/customer/import` → **202** + `{ jobExecutionId }` | ✅ | |
 | `GET /api/batch/customer/import/{id}/status` | ✅ | 404 for unknown id |
 | Async `JobLauncher` (`TaskExecutorJobLauncher` + executor) | ✅ | `AsyncJobLauncherConfig` |
 | `CustomerImportUseCase`: `launchImport` + `getImportStatus` | ✅ | |

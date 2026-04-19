@@ -29,7 +29,7 @@ Dependency rule:
 
 - Code may depend **only inward**, never outward (domain must not import Spring Batch classes).
 
-**DTOs on use-case contracts:** Types such as `CustomerImportResult` live in **`application.customer.dto`** as the **return shape** of `CustomerImportUseCase` (under **`application.customer.port`**). Infrastructure adapters (e.g. `SpringBatchCustomerImportUseCase`) **construct** those records — still an inward dependency (infra → application API), not application “calling down” into infra.
+**DTOs on use-case contracts:** Types such as `CustomerImportResult` live in **application** because they are the **return shape** of `CustomerImportUseCase`. Infrastructure implementations (e.g. `SpringBatchCustomerImportUseCase`) **construct** those records to satisfy the interface — that is still an inward dependency (infra → application API), not application “calling down” into infra.
 
 They are **not** domain models: they carry **job / polling** concerns (`BatchStatus`, read/skip/write counters). **`Customer`** stays in **domain** as the business row shape.
 
@@ -39,21 +39,25 @@ Today, the project is functional and has been refactored into onion-style layers
 
 - Presentation:
   - `presentation/api/BatchJobController.java` (POST → 202 async launch; GET → poll status)
-  - `presentation/api/exceptions/BatchJobApiExceptionHandler.java` (scoped `ProblemDetail` for this API)
 - Application:
-  - `application/customer/port/CustomerImportUseCase.java`, `CustomerUpsertPort.java`
-  - `application/customer/dto/CustomerImportResult.java` (progress + failures)
-  - `application/customer/CustomerImportInputFile.java`; `application/customer/exceptions/` (`ImportJobLaunchException`, `MissingInputFileException`)
+  - `application/customer/CustomerImportUseCase.java` (`launchImport` + `getImportStatus`)
+  - `application/customer/CustomerImportResult.java` (includes progress counts)
+  - `application/customer/CustomerImportDefaults.java` (default CSV resource)
+  - `application/customer/port/CustomerUpsertPort.java`
 - Domain:
   - `domain/customer/Customer.java`
-  - `domain/customer/policy/CustomerImportPolicy.java`, `EmailAndNameCustomerImportPolicy.java`
-  - `domain/validation/package-info.java` (cross-cutting validation placeholder)
-- Common: `common/package-info.java` (JDK-only shared helpers)
-- Infrastructure:
-  - **Batch `@Configuration`**: `infrastructure/batch/config/CustomerImportJobConfig.java`, `CustomerCsvItemReaderConfig.java`
-  - **Adapters**: `infrastructure/adapter/batch/` — `SpringBatchCustomerImportUseCase`, processor/writer adapters, `JobCompletionListener`; `infrastructure/adapter/persistence/OracleCustomerUpsertPortAdapter.java`
-  - **Config**: `infrastructure/config/` — `AsyncJobLauncherConfig`, `JdbcConfig`, `DomainPolicyConfig`
-  - **Diagnostics**: `infrastructure/diagnostics/DevStartupDiagnostics.java`
+  - `domain/customer/CustomerImportPolicy.java`
+  - `domain/customer/EmailAndNameCustomerImportPolicy.java`
+- Infrastructure (batch + persistence + config + diagnostics):
+  - `infrastructure/batch/CustomerImportJobConfig.java` (fault-tolerant step with retry + skip + backoff)
+  - `infrastructure/batch/SpringBatchCustomerImportUseCase.java` (async launch via JobLauncher, status via JobExplorer)
+  - `infrastructure/batch/CustomerCsvItemReaderConfig.java`
+  - `infrastructure/batch/CustomerItemProcessorAdapter.java`
+  - `infrastructure/batch/CustomerUpsertItemWriterAdapter.java` (chunk writer → port)
+  - `infrastructure/batch/JobCompletionListener.java` (logs per-step counts)
+  - `infrastructure/config/AsyncJobLauncherConfig.java` (async TaskExecutor for JobLauncher)
+  - `infrastructure/persistence/OracleCustomerUpsertPortAdapter.java`
+  - `infrastructure/diagnostics/DevStartupDiagnostics.java`
 
 ## Target package structure (approved direction)
 
@@ -63,61 +67,45 @@ This is the proposed target structure for refactor (keeping root package):
 com.example.spring_batch_demo
 ├── SpringBatchDemoApplication.java
 │
-├── common
-│   └── package-info.java (optional utilities)
 ├── domain
-│   ├── customer
-│   │   ├── Customer.java
-│   │   └── policy
-│   │       ├── CustomerImportPolicy.java
-│   │       └── EmailAndNameCustomerImportPolicy.java
-│   └── validation
-│       └── package-info.java
+│   └── customer
+│       ├── Customer.java
+│       └── CustomerImportPolicy.java (or domain validation service)
+│
 ├── application
 │   └── customer
-│       ├── dto
-│       │   └── CustomerImportResult.java
-│       ├── port
-│       │   ├── CustomerImportUseCase.java
-│       │   ├── CustomerUpsertPort.java
-│       │   └── CustomerSourcePort.java (optional)
-│       ├── CustomerImportInputFile.java
-│       └── exceptions
-│           ├── ImportJobLaunchException.java
-│           └── MissingInputFileException.java
+│       ├── CustomerImportUseCase.java
+│       ├── CustomerImportResult.java (job / polling DTO)
+│       ├── CustomerImportDefaults.java (optional defaults)
+│       └── port
+│           ├── CustomerUpsertPort.java
+│           └── CustomerSourcePort.java (optional)
+│
 ├── infrastructure
 │   ├── batch
-│   │   └── config
-│   │       ├── CustomerImportJobConfig.java
-│   │       └── CustomerCsvItemReaderConfig.java
-│   ├── adapter
-│   │   ├── batch
-│   │   │   ├── SpringBatchCustomerImportUseCase.java
-│   │   │   ├── CustomerItemProcessorAdapter.java
-│   │   │   ├── CustomerUpsertItemWriterAdapter.java
-│   │   │   └── JobCompletionListener.java
-│   │   └── persistence
-│   │       └── OracleCustomerUpsertPortAdapter.java
+│   │   ├── CustomerImportJobConfig.java
+│   │   ├── CustomerCsvItemReaderConfig.java
+│   │   ├── CustomerItemProcessorAdapter.java
+│   │   ├── CustomerUpsertItemWriterAdapter.java
+│   │   ├── SpringBatchCustomerImportUseCase.java
+│   │   └── JobCompletionListener.java
 │   ├── config
 │   │   ├── AsyncJobLauncherConfig.java
 │   │   ├── JdbcConfig.java
 │   │   └── DomainPolicyConfig.java
+│   ├── persistence
+│   │   └── OracleCustomerUpsertPortAdapter.java
 │   └── diagnostics
 │       └── DevStartupDiagnostics.java
+│
 └── presentation
     └── api
-        ├── BatchJobController.java
-        └── exceptions
-            └── BatchJobApiExceptionHandler.java
+        └── BatchJobController.java
 ```
 
 Notes:
-- Spring Batch **wiring** (`Job`/`Step` builders, `@StepScope` reader bean) lives under **`infrastructure.batch.config`**.
-- Spring Batch **SPI adapters** and the async use-case implementation live under **`infrastructure.adapter.batch`**.
-- Oracle/JDBC port implementation lives under **`infrastructure.adapter.persistence`**.
-- **Two “Config” classes in batch:** `CustomerImportJobConfig` owns the **job + fault-tolerant step**; `CustomerCsvItemReaderConfig` owns the **`@StepScope` reader** (separate bean lifecycle from the job graph).
-- **Diagnostics** (`DevStartupDiagnostics`): dev-only JDBC probes (current user, table visibility) for operators.
-- **Oracle upsert adapter** (`OracleCustomerUpsertPortAdapter`): implements `CustomerUpsertPort` with `MERGE` SQL.
+- Spring Batch types (`Job`, `Step`, `ItemReader`, `ItemWriter`) live under `infrastructure.batch`.
+- Oracle/JDBC specifics live under `infrastructure.persistence`.
 - Domain stays plain Java and can be unit-tested without Spring.
 
 ## Data flow (high level)
@@ -142,12 +130,12 @@ Notes:
 
 ## Evolution (done vs optional next)
 
-**Already in place:** `domain` (including `domain.customer.policy`), `application` (`port` + `dto` + `customer.exceptions`), `infrastructure.adapter.*` + `infrastructure.batch.config`, `presentation.api` + `presentation.api.exceptions`, and `common` placeholder.
+**Already in place:** `domain` + `application` (use-case, `CustomerUpsertPort`, `CustomerImportResult`) + `infrastructure.batch` / `infrastructure.persistence` adapters + thin `presentation.api` controller.
 
 **Optional next steps** (see `ROADMAP.md`):
 
 - `CustomerSourcePort` (abstract CSV behind a port).
-- Populate `domain.validation` or `common` when cross-cutting rules or JDK helpers appear.
+- Further split infra packages (e.g. dedicated `adapter` vs `config` folders) if the codebase grows.
 - Verify changes with `./mvnw clean verify`, Postman/curl, and Oracle queries for `CUSTOMER` and `BATCH_*`.
 
 ## Further reading (Onion Architecture)

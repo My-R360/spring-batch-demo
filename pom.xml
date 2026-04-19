@@ -69,11 +69,10 @@
 			<version>${mockito.version}</version>
 			<scope>test</scope>
 		</dependency>
-		<!-- Runtime (not test-only): profile `test` + smoke `spring-boot:run -DskipTests` must resolve org.h2.Driver without Oracle. -->
 		<dependency>
 			<groupId>com.h2database</groupId>
 			<artifactId>h2</artifactId>
-			<scope>runtime</scope>
+			<scope>test</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.projectlombok</groupId>
