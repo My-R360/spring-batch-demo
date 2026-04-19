@@ -40,16 +40,16 @@ The `dev` profile:
 
 ### 3) Trigger import (Postman/curl)
 
-The POST endpoint launches the job **asynchronously** and returns **202 Accepted** immediately.
+The POST endpoint launches the job **asynchronously** and returns **202 Accepted** immediately. Query parameter **`inputFile` is required** (non-blank Spring resource location); omitting it or sending only whitespace returns **400** with a `ProblemDetail` body.
 
-Default bundled CSV:
+Bundled sample CSV on the classpath:
 
 ```bash
-curl -X POST "http://localhost:8080/api/batch/customer/import"
+curl -X POST "http://localhost:8080/api/batch/customer/import?inputFile=classpath:customers.csv"
 # → 202  {"jobExecutionId": 1}
 ```
 
-Import a different classpath CSV:
+Another classpath CSV:
 
 ```bash
 curl -X POST "http://localhost:8080/api/batch/customer/import?inputFile=classpath:customers-01.csv"
@@ -74,6 +74,7 @@ While the job is running, `status` will be `STARTED`. When done, it will be `COM
 
 ## Project structure (high level)
 
+<<<<<<< Updated upstream
 - **Presentation (API)**: `.../presentation/api/BatchJobController.java`
 - **Application (use-case)**:
   - `.../application/customer/CustomerImportUseCase.java`
@@ -88,6 +89,27 @@ While the job is running, `status` will be `STARTED`. When done, it will be `COM
   - Writer (Oracle MERGE): `.../infrastructure/persistence/OracleCustomerWriterConfig.java`
   - Listener logs: `.../infrastructure/batch/JobCompletionListener.java`
   - Dev DB diagnostics: `.../infrastructure/diagnostics/DevStartupDiagnostics.java`
+=======
+- **Presentation (API)**:
+  - `.../presentation/api/BatchJobController.java`
+  - `.../presentation/api/exceptions/BatchJobApiExceptionHandler.java` (scoped errors + `ProblemDetail`)
+- **Application (ports + DTOs)**:
+  - `.../application/customer/port/CustomerImportUseCase.java`
+  - `.../application/customer/port/CustomerUpsertPort.java`
+  - `.../application/customer/dto/CustomerImportResult.java` (job / polling record, not domain)
+  - `.../application/customer/CustomerImportInputFile.java` (required `inputFile` path rules); `.../application/customer/exceptions/` (`ImportJobLaunchException`, `MissingInputFileException`)
+- **Domain (model + policy)**:
+  - `.../domain/customer/Customer.java`
+  - `.../domain/customer/policy/CustomerImportPolicy.java`, `.../domain/customer/policy/EmailAndNameCustomerImportPolicy.java`
+  - `.../domain/validation/package-info.java` (placeholder for cross-cutting validation)
+- **Common (JDK-only helpers)**:
+  - `.../common/package-info.java`
+- **Infrastructure**:
+  - **Batch wiring (`@Configuration`)**: `.../infrastructure/batch/config/CustomerImportJobConfig.java` (job + fault-tolerant step), `.../infrastructure/batch/config/CustomerCsvItemReaderConfig.java` (`@StepScope` CSV reader)
+  - **Adapters (implementations)**: `.../infrastructure/adapter/batch/` — use-case impl, processor/writer adapters, `JobCompletionListener`; `.../infrastructure/adapter/persistence/OracleCustomerUpsertPortAdapter.java` (Oracle MERGE)
+  - **Other config**: `.../infrastructure/config/AsyncJobLauncherConfig.java`, `JdbcConfig`, `DomainPolicyConfig`
+  - **Dev DB diagnostics**: `.../infrastructure/diagnostics/DevStartupDiagnostics.java`
+>>>>>>> Stashed changes
 - **Schema init**: `src/main/resources/schema.sql`
 - **Sample CSVs**: `src/main/resources/customers.csv`, `src/main/resources/customers-01.csv`
 
@@ -108,7 +130,7 @@ Run everything:
 
 Key test-infrastructure files:
 
-- `src/test/resources/application-test.properties` — H2 in-memory datasource (Oracle-compat mode), auto-init off
+- `src/main/resources/application-test.properties` — H2 in-memory datasource (Oracle-compat mode) when profile `test` is active; auto-init off
 - `src/test/resources/mockito-extensions/org.mockito.plugins.MockMaker` — forces **subclass** mock maker (avoids Byte Buddy issues on newer JVMs)
 
 > **No live Oracle is needed to run tests.** Integration tests use H2 with `MODE=Oracle`.
