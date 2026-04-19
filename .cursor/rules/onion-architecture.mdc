@@ -16,7 +16,7 @@ alwaysApply: true
 
 Infrastructure **may import and construct** application-layer types that are part of the **public port contract**: e.g. a `record` returned by `CustomerImportUseCase#getImportStatus`, or parameters of port interfaces. That is **inward** dependency (infra → application API surface), not “application calling infra.”
 
-**Keep batch/API status DTOs in application** (e.g. `CustomerImportResult` with job id + Spring Batch counters). **Do not move them to domain** — domain should stay free of orchestration and HTTP-polling shapes; use **domain** for true business entities (`Customer`) and policies.
+**Keep batch/API status DTOs in application** (e.g. `application.customer.dto.CustomerImportResult` with job id + Spring Batch counters). **Do not move them to domain** — domain should stay free of orchestration and HTTP-polling shapes; use **domain** for true business entities (`Customer`) and policies.
 
 What stays wrong: **application** or **domain** importing Spring, JDBC, Batch, or concrete adapter classes; **domain** importing application infrastructure types; business rules living in adapters instead of domain policies.
 

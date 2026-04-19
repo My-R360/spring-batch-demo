@@ -1,4 +1,4 @@
-package com.example.spring_batch_demo.infrastructure.batch;
+package com.example.spring_batch_demo.infrastructure.adapter.batch;
 
 import java.util.List;
 

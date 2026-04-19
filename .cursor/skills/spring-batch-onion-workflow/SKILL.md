@@ -16,7 +16,7 @@ Apply consistent implementation patterns for this project (works for **senior** 
 ## Project anchors
 
 - Root package: `com.example.spring_batch_demo`
-- API endpoint: `POST /api/batch/customer/import`
+- API endpoint: `POST /api/batch/customer/import?inputFile=…` (required non-blank resource)
 - Input parameter: `inputFile` (`classpath:` or `file:` resource)
 - Core docs: `README.md`, `RUNBOOK.md`, `SD-DESIGN.md`, `SD-ARCHITECTURE.md`, `PROMPTS.md`
 - Optional deck: `slidev/` (see `.cursor/rules/slidev-deck.mdc` — keep slides E2E and diagrams accurate when code changes)
@@ -29,14 +29,16 @@ Use this checklist for feature/refactor tasks:
 2. For **non-trivial** edits (multi-file, layer boundaries, ports/adapters, batch wiring), prefer **code-review-graph** (MCP/CLI) for impact before broad plans or wide reads (`.cursor/rules/code-review-graph.mdc`).
 3. Keep controller thin; delegate to an application use-case.
 4. Put business rules in domain policy/service (framework-free).
-5. Keep Spring Batch/JDBC/Oracle logic in infrastructure adapters/config.
-6. Use **explicit Java imports only**—no star imports (`.cursor/rules/java-imports.mdc`).
-7. Preserve job/step identity unless migration is deliberate.
-8. Keep writes idempotent for reruns (MERGE/upsert behavior).
-9. Build and verify:
+5. Keep Spring Batch/JDBC/Oracle logic in infrastructure adapters/config (`infrastructure.adapter.*` for beans that implement ports or bridge Batch SPI; `infrastructure.batch.config` for `@Configuration` job/step/reader wiring).
+6. Presentation API errors: use `presentation.api.exceptions` (e.g. `@RestControllerAdvice` scoped to batch controllers) mapping **application** exception types from `application.*.exceptions` to `ProblemDetail`—avoid fat controllers.
+7. Application contracts: ports under `application.*.port`; DTOs like `CustomerImportResult` under `application.customer.dto`; use-case exceptions under `application.customer.exceptions` (or other `application.<feature>.exceptions`); domain policies under `domain.*.policy`.
+8. Use **explicit Java imports only**—no star imports (`.cursor/rules/java-imports.mdc`).
+9. Preserve job/step identity unless migration is deliberate.
+10. Keep writes idempotent for reruns (MERGE/upsert behavior).
+11. Build and verify:
    - `./mvnw clean package -DskipTests`
-10. Update docs + append `PROMPTS.md` entry.
-11. If `slidev/` is present: refresh `slidev/slides.md` (narrative + Mermaid) for the same behavior change; run `cd slidev && npx slidev build slides.md`.
+12. Update docs + append `PROMPTS.md` entry.
+13. If `slidev/` is present: refresh `slidev/slides.md` (narrative + Mermaid) for the same behavior change; run `cd slidev && npx slidev build slides.md`.
 
 ## Debug workflow
 

@@ -1,4 +1,4 @@
-package com.example.spring_batch_demo.infrastructure.persistence;
+package com.example.spring_batch_demo.infrastructure.adapter.persistence;
 
 import java.util.List;
 import java.util.Map;

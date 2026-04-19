@@ -447,7 +447,7 @@ These can be done alongside any phase:
 - **Bug 1 — `@Qualifier` not propagated by Lombok `@RequiredArgsConstructor`**:
   - `SpringBatchCustomerImportUseCase` had `@Qualifier("customerJob")` on a field, but Lombok's generated constructor does not copy parameter-level annotations. Spring could not disambiguate the `Job` bean at injection time.
   - **Fix**: Replaced `@RequiredArgsConstructor` with an explicit constructor that carries `@Qualifier("customerJob")` on the `Job` parameter.
-  - **File**: `infrastructure/batch/SpringBatchCustomerImportUseCase.java`
+  - **File**: `infrastructure/adapter/batch/SpringBatchCustomerImportUseCase.java` (was `infrastructure/batch/` at time of the bug report)
 - **Bug 2 — Failed-status detection required non-empty failures list**:
   - Controller checked `!result.failures().isEmpty() && "FAILED".equals(...)`, so a job that failed with an empty failures list was returned as 200 OK instead of 500.
   - **Fix**: Simplified condition to `"FAILED".equalsIgnoreCase(result.status())` — status alone determines the HTTP response code.
@@ -520,6 +520,52 @@ These can be done alongside any phase:
   - **Docs**: `RUNBOOK.md` troubleshooting for startup WARNs; `SD-DESIGN.md` “Startup logging”; tightened FAILED-job troubleshooting to match current controller.
   - **Slidev**: Added `slidev/slides.md`, `slidev/package.json`, `slidev/README.md`. **Resume fix:** npm no longer publishes a top-level `slidev` package at `0.49.29` — switched to **`@slidev/cli@52.14.2`** + **`@slidev/theme-default@0.25.0`**; `npm install` + `npx slidev build slides.md` succeeds.
 - **Outcome**: Deck builds; test imports match `.cursor/rules/java-imports.mdc`; operators have a place to read about benign Batch/JDBC WARN noise.
+
+---
+
+### 28) Recreate “onion-spring-batch-01” stash intent on current branch (no stash merge)
+
+- **Prompt summary**: User had applied prompts 1–7 on branch `onion-spring-batch-01` (exception handling, `presentation.api.exception`, split `port` / `adapter` packages, `common`, `application.customer.dto`, domain `policy` + validation placeholder), then stashed as `phase-1-restructure-bugs-02`; stash conflicts with newer commits. Recreate the same logical/structural outcome on the current tree without resolving the stash.
+- **Changes done** (verification + doc alignment):
+  - Confirmed code layout: `application.customer.port` / `dto`, `domain.customer.policy`, `infrastructure.adapter.batch` / `adapter.persistence`, `infrastructure.batch.config`, `presentation.api.exception`, `ImportJobLaunchException`, `common.package-info`, `domain.validation.package-info`.
+  - **Docs/rules**: `SD-DESIGN.md`, `RUNBOOK.md` (paths, §7.5 two batch `*Config` classes), `.cursor/rules/onion-architecture.mdc` (DTO path), `.cursor/skills/spring-batch-onion-workflow/SKILL.md` (checklist: adapter vs config, exception package, port/dto/policy).
+- **Outcome**: Documentation and skill text match the refactored packages; user can drop the conflicting stash when satisfied.
+
+---
+
+### 29) Resume quality gates — smoke run + test profile classpath
+
+- **Prompt summary**: Continue from interrupted smoke check after stash-recreation thread.
+- **Changes done**:
+  - **`application-test.properties`**: moved from `src/test/resources` to **`src/main/resources`** so profile `test` is honored by `spring-boot:run` (main classpath), not only Surefire.
+  - **`pom.xml`**: H2 dependency scope **`test` → `runtime`** so `./mvnw -DskipTests spring-boot:run` still resolves `org.h2.Driver` for smoke runs.
+  - **Docs**: `AGENTS.md`, `README.md`, `RUNBOOK.md` — path + wording for the test profile datasource.
+- **Outcome**: `./mvnw clean test` and smoke (`spring.profiles.active=test`, alternate port if 8082 busy) succeed with **jdbc:h2**; `code-review-graph` CLI absent in env (skipped).
+
+---
+
+### 30) Require `inputFile` on import POST; defer skip-line audit to Phase 2
+
+- **Prompt summary**: Do not default CSV when `inputFile` is missing; return an error. Keep malformed-line handling as today; reporting/audit for skips deferred to Phase 2 (roadmap).
+- **Changes done**:
+  - **`MissingInputFileException`** + **`BatchJobApiExceptionHandler`** → **400** `ProblemDetail` (`Missing input file`).
+  - **`CustomerImportDefaults`**: `requireInputFileLocation` for API/launch; `requireJobParameterInputFile` for reader job parameter.
+  - **`SpringBatchCustomerImportUseCase`**, **`CustomerCsvItemReaderConfig`**, port Javadoc, **`CustomerImportJobConfig`** Javadoc (Phase 2 audit note).
+  - **Tests**: `CustomerImportDefaultsTest`, updated use-case/controller/WebMvc tests, **`BatchJobImportInputFileApiIntegrationTest`** (`@SpringBootTest` + `MockMvc`).
+  - **Docs**: `README.md`, `RUNBOOK.md`, `ROADMAP.md`, `AGENTS.md`.
+- **Outcome**: Missing/blank `inputFile` fails fast at launch with a clear client error; skip/filter behavior unchanged until Phase 2.
+
+---
+
+### 31) Exception packages + rename `CustomerImportDefaults` → `CustomerImportInputFile`
+
+- **Prompt summary**: Clarify handler vs application exceptions; rename `presentation/api/exception` → `exceptions`; move `ImportJobLaunchException` / `MissingInputFileException` under `application/customer/exceptions`; clarify what replaces “defaults.”
+- **Changes done**:
+  - **`presentation.api.exceptions.BatchJobApiExceptionHandler`** (was `…api.exception`).
+  - **`application.customer.exceptions`**: `ImportJobLaunchException`, `MissingInputFileException`.
+  - **`CustomerImportInputFile`**: replaces **`CustomerImportDefaults`** — only **required** path validation + trim (no default file); reader job-parameter guard unchanged.
+  - **Docs/skill**: `README.md`, `RUNBOOK.md`, `SD-ARCHITECTURE.md`, `SD-DESIGN.md`, `.cursor/skills/spring-batch-onion-workflow/SKILL.md`; tests updated (`CustomerImportInputFileTest`, imports).
+- **Outcome**: Presentation HTTP mapping stays in presentation; application error types live under `application.customer.exceptions`; naming matches “no default CSV.”
 
 ---
 

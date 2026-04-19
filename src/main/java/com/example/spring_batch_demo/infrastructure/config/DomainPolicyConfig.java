@@ -1,7 +1,7 @@
 package com.example.spring_batch_demo.infrastructure.config;
 
-import com.example.spring_batch_demo.domain.customer.CustomerImportPolicy;
-import com.example.spring_batch_demo.domain.customer.EmailAndNameCustomerImportPolicy;
+import com.example.spring_batch_demo.domain.customer.policy.CustomerImportPolicy;
+import com.example.spring_batch_demo.domain.customer.policy.EmailAndNameCustomerImportPolicy;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 

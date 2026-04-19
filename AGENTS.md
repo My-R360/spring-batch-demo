@@ -4,7 +4,7 @@
 
 ### Overview
 
-Spring Batch demo application (Java 21 / Spring Boot 3.2.5) that reads customer CSV data, validates emails, uppercases names, and writes to an Oracle database. The batch job is triggered on-demand via `POST /api/batch/customer/import`.
+Spring Batch demo application (Java 21 / Spring Boot 3.2.5) that reads customer CSV data, validates emails, uppercases names, and writes to an Oracle database. The batch job is triggered on-demand via `POST /api/batch/customer/import?inputFile=…` (non-blank resource location required).
 
 ### Architecture direction (important)
 
@@ -39,11 +39,11 @@ The `dev` profile auto-creates the `CUSTOMER` table and Spring Batch metadata ta
 | Compile | `./mvnw compile` |
 | Run tests | `./mvnw test` |
 | Run app (dev) | `./mvnw spring-boot:run -Dspring-boot.run.profiles=dev` |
-| Trigger batch job | `curl -X POST http://localhost:8080/api/batch/customer/import` |
+| Trigger batch job | `curl -X POST "http://localhost:8080/api/batch/customer/import?inputFile=classpath:customers.csv"` |
 
 ### Gotchas
 
-- Tests use `src/test/resources/application-test.properties` with embedded H2 (`MODE=Oracle`), so Oracle is not required for `./mvnw test`.
+- Tests use profile `test` with `src/main/resources/application-test.properties` (embedded H2, `MODE=Oracle`), so Oracle is not required for `./mvnw test` or `./mvnw spring-boot:run` when that profile is active.
 - Running app startup tests can fail if port 8080 is already in use by another process.
 - The Docker daemon must be started manually (`sudo dockerd &`) in cloud environments; it is not auto-started.
 - Oracle XE takes ~30-60 seconds to initialize on first container start; poll `docker logs oracle-xe` for `DATABASE IS READY TO USE`.

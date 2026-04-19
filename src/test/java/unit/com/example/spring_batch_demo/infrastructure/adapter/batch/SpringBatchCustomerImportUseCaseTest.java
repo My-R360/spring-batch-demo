@@ -1,7 +1,10 @@
-package com.example.spring_batch_demo.infrastructure.batch;
+package com.example.spring_batch_demo.infrastructure.adapter.batch;
 
 import java.util.List;
 
+import com.example.spring_batch_demo.application.customer.exceptions.ImportJobLaunchException;
+import com.example.spring_batch_demo.application.customer.exceptions.MissingInputFileException;
+import com.example.spring_batch_demo.application.customer.dto.CustomerImportResult;
 import org.junit.jupiter.api.Test;
 import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.ExitStatus;
@@ -11,11 +14,10 @@ import org.springframework.batch.core.StepExecution;
 import org.springframework.batch.core.explore.JobExplorer;
 import org.springframework.batch.core.launch.JobLauncher;
 
-import com.example.spring_batch_demo.application.customer.CustomerImportResult;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -32,31 +34,13 @@ class SpringBatchCustomerImportUseCaseTest {
             new SpringBatchCustomerImportUseCase(jobLauncher, jobExplorer, job);
 
     @Test
-    void launchImportUsesDefaultClasspathWhenInputIsNull() throws Exception {
-        JobExecution execution = mock(JobExecution.class);
-        when(job.getName()).thenReturn("customerJob");
-        when(jobLauncher.run(eq(job), any())).thenReturn(execution);
-        when(execution.getId()).thenReturn(11L);
-        when(execution.getStatus()).thenReturn(BatchStatus.STARTING);
-
-        Long id = useCase.launchImport(null);
-
-        assertEquals(11L, id);
-        verify(jobLauncher).run(eq(job), any());
+    void launchImportRejectsNullInputFile() {
+        assertThrows(MissingInputFileException.class, () -> useCase.launchImport(null));
     }
 
     @Test
-    void launchImportUsesDefaultClasspathWhenInputIsBlank() throws Exception {
-        JobExecution execution = mock(JobExecution.class);
-        when(job.getName()).thenReturn("customerJob");
-        when(jobLauncher.run(eq(job), any())).thenReturn(execution);
-        when(execution.getId()).thenReturn(12L);
-        when(execution.getStatus()).thenReturn(BatchStatus.STARTING);
-
-        Long id = useCase.launchImport("   ");
-
-        assertEquals(12L, id);
-        verify(jobLauncher).run(eq(job), any());
+    void launchImportRejectsBlankInputFile() {
+        assertThrows(MissingInputFileException.class, () -> useCase.launchImport("   "));
     }
 
     @Test
@@ -70,6 +54,17 @@ class SpringBatchCustomerImportUseCaseTest {
         Long id = useCase.launchImport("classpath:customers-01.csv");
 
         assertEquals(13L, id);
+    }
+
+    @Test
+    void launchImportWrapsLauncherFailures() throws Exception {
+        when(job.getName()).thenReturn("customerJob");
+        when(jobLauncher.run(eq(job), any())).thenThrow(new RuntimeException("launch failed"));
+
+        ImportJobLaunchException ex = assertThrows(
+                ImportJobLaunchException.class,
+                () -> useCase.launchImport("classpath:customers-01.csv"));
+        assertTrue(ex.getMessage().contains("launch failed"));
     }
 
     @Test

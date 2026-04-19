@@ -1,9 +1,9 @@
-package com.example.spring_batch_demo.infrastructure.batch;
+package com.example.spring_batch_demo.infrastructure.adapter.batch;
 
 import org.junit.jupiter.api.Test;
 
 import com.example.spring_batch_demo.domain.customer.Customer;
-import com.example.spring_batch_demo.domain.customer.CustomerImportPolicy;
+import com.example.spring_batch_demo.domain.customer.policy.CustomerImportPolicy;
 
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.mock;

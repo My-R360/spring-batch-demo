@@ -1,4 +1,6 @@
-package com.example.spring_batch_demo.domain.customer;
+package com.example.spring_batch_demo.domain.customer.policy;
+
+import com.example.spring_batch_demo.domain.customer.Customer;
 
 /**
  * Domain rule for whether and how a customer row should be imported.
@@ -8,4 +10,3 @@ package com.example.spring_batch_demo.domain.customer;
 public interface CustomerImportPolicy {
     Customer apply(Customer input);
 }
-

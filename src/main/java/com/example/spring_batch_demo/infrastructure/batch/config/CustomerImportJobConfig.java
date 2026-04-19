@@ -1,6 +1,7 @@
-package com.example.spring_batch_demo.infrastructure.batch;
+package com.example.spring_batch_demo.infrastructure.batch.config;
 
 import com.example.spring_batch_demo.domain.customer.Customer;
+import com.example.spring_batch_demo.infrastructure.adapter.batch.JobCompletionListener;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.job.builder.JobBuilder;
@@ -62,6 +63,8 @@ public class CustomerImportJobConfig {
     /**
      * Fault-tolerant step: retries transient DB errors with exponential backoff,
      * skips malformed CSV rows up to a configurable limit.
+     *
+     * <p>Detailed per-row skip/audit reporting is deferred to <strong>Phase 2</strong> (roadmap).</p>
      */
     @Bean
     public Step customerStep() {

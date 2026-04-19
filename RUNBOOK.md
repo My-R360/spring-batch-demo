@@ -86,15 +86,17 @@ The import API is **asynchronous** — POST returns **202 Accepted** immediately
 
 | Method | URL | Description |
 |--------|-----|-------------|
-| `POST` | `/api/batch/customer/import` | Launch import (returns 202 + jobExecutionId) |
+| `POST` | `/api/batch/customer/import?inputFile=…` | Launch import (returns 202 + jobExecutionId); **400** if `inputFile` missing/blank |
 | `GET` | `/api/batch/customer/import/{jobExecutionId}/status` | Poll job status/progress |
 
-### 5.2 Import the default CSV bundled in the jar
+### 5.2 Import a CSV bundled in the jar (`inputFile` required)
 
 ```bash
-curl -X POST "http://localhost:8080/api/batch/customer/import"
+curl -X POST "http://localhost:8080/api/batch/customer/import?inputFile=classpath:customers.csv"
 # → 202  {"jobExecutionId": 1}
 ```
+
+Omitting `inputFile` or sending a blank value returns **400** (`ProblemDetail`, title `Missing input file`). Per-row parse skips and filtered rows are visible only via status counters for now; **Phase 2** (roadmap) adds reporting/audit for skipped and rejected lines.
 
 ### 5.3 Poll job status
 
@@ -163,7 +165,7 @@ ORDER BY JOB_EXECUTION_ID DESC;
 
 ### 7.1 Request → Job launch (async)
 
-1. Postman hits `POST /api/batch/customer/import`
+1. Postman hits `POST /api/batch/customer/import?inputFile=…` (parameter required)
 2. Controller calls `CustomerImportUseCase.launchImport(inputFile)`
 3. Infrastructure impl builds `JobParameters` and calls the **async** `JobLauncher.run()` — returns immediately
 4. Controller returns **202 Accepted** with `{"jobExecutionId": N}`
@@ -189,15 +191,19 @@ ORDER BY JOB_EXECUTION_ID DESC;
 ### 7.4 Key code locations
 
 - Presentation (API): `.../presentation/api/BatchJobController.java`
-- Application use-case + result DTO: `.../application/customer/CustomerImportUseCase.java`, `.../application/customer/CustomerImportResult.java`
-- Persistence port: `.../application/customer/port/CustomerUpsertPort.java`
-- Job/Step wiring: `.../infrastructure/batch/CustomerImportJobConfig.java`
-- Reader: `.../infrastructure/batch/CustomerCsvItemReaderConfig.java`
-- Processor adapter: `.../infrastructure/batch/CustomerItemProcessorAdapter.java`
-- Batch writer adapter: `.../infrastructure/batch/CustomerUpsertItemWriterAdapter.java`
-- Oracle MERGE: `.../infrastructure/persistence/OracleCustomerUpsertPortAdapter.java`
-- Async launcher: `.../infrastructure/config/AsyncJobLauncherConfig.java`
-- Listener logs: `.../infrastructure/batch/JobCompletionListener.java`
+- Presentation (errors): `.../presentation/api/exceptions/BatchJobApiExceptionHandler.java`
+- Application ports + DTO: `.../application/customer/port/CustomerImportUseCase.java`, `CustomerUpsertPort.java`; `.../application/customer/dto/CustomerImportResult.java`
+- Application import input / errors: `.../application/customer/CustomerImportInputFile.java`; `.../application/customer/exceptions/` (`MissingInputFileException`, `ImportJobLaunchException`)
+- Domain policy: `.../domain/customer/policy/`
+- Job/Step + reader **configuration**: `.../infrastructure/batch/config/CustomerImportJobConfig.java`, `CustomerCsvItemReaderConfig.java`
+- Batch **adapters** + listener: `.../infrastructure/adapter/batch/`
+- Oracle MERGE adapter: `.../infrastructure/adapter/persistence/OracleCustomerUpsertPortAdapter.java`
+- Async launcher + JDBC + domain policy wiring: `.../infrastructure/config/`
+
+### 7.5 Why two classes named `*Config` under batch?
+
+- **`CustomerImportJobConfig`**: builds the **`Job`** and fault-tolerant **`Step`** (chunk, retry/skip, listener registration).
+- **`CustomerCsvItemReaderConfig`**: builds the **`@StepScope` `FlatFileItemReader`** so each run can resolve a different `inputFile` job parameter. Kept separate from the job graph for clarity and Spring Batch bean scopes.
 
 ## 8) Tests
 
@@ -209,16 +215,20 @@ src/test/java/
 │   └── com/example/spring_batch_demo/
 │       ├── SpringBatchDemoApplicationMainTest.java
 │       ├── application/customer/
+│       ├── application/customer/dto/
 │       ├── domain/customer/
-│       ├── infrastructure/batch/
+│       ├── infrastructure/adapter/batch/
+│       ├── infrastructure/adapter/persistence/
+│       ├── infrastructure/batch/config/
 │       ├── infrastructure/config/
 │       ├── infrastructure/diagnostics/
-│       ├── infrastructure/persistence/
 │       └── presentation/api/BatchJobControllerTest.java
 └── integration/   ← Spring-backed (@SpringBootTest, @WebMvcTest)
     └── com/example/spring_batch_demo/
         ├── SpringBatchDemoApplicationTests.java
-        └── presentation/api/BatchJobControllerWebMvcIntegrationTest.java
+        └── presentation/api/
+            ├── BatchJobControllerWebMvcIntegrationTest.java
+            └── BatchJobImportInputFileApiIntegrationTest.java
 ```
 
 ### 8.1 Running tests
@@ -233,7 +243,7 @@ src/test/java/
 
 Tests use **H2 in-memory** (Oracle-compat mode) — no running Oracle instance required.
 
-Configuration: `src/test/resources/application-test.properties`
+Configuration: `src/main/resources/application-test.properties` (active for Spring Boot profile `test`)
 
 ### 8.3 Mockito mock maker
 

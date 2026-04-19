@@ -1,4 +1,4 @@
-package com.example.spring_batch_demo.application.customer;
+package com.example.spring_batch_demo.application.customer.dto;
 
 import java.util.List;
 
