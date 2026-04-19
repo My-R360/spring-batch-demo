@@ -1,4 +1,4 @@
-package com.example.spring_batch_demo.infrastructure.batch;
+package com.example.spring_batch_demo.infrastructure.batch.config;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.batch.core.Job;
@@ -10,9 +10,11 @@ import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import com.example.spring_batch_demo.domain.customer.Customer;
+import com.example.spring_batch_demo.infrastructure.adapter.batch.JobCompletionListener;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.Mockito.mock;
 
 class CustomerImportJobConfigTest {
 

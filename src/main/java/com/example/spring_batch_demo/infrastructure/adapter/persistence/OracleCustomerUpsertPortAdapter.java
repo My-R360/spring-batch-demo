@@ -1,4 +1,4 @@
-package com.example.spring_batch_demo.infrastructure.persistence;
+package com.example.spring_batch_demo.infrastructure.adapter.persistence;
 
 import java.util.HashMap;
 import java.util.List;
@@ -50,4 +50,3 @@ public class OracleCustomerUpsertPortAdapter implements CustomerUpsertPort {
         jdbc.batchUpdate(UPSERT_SQL, batch);
     }
 }
-

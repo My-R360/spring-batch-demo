@@ -1,4 +1,4 @@
-package com.example.spring_batch_demo.infrastructure.batch;
+package com.example.spring_batch_demo.infrastructure.batch.config;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -10,15 +10,28 @@ import org.springframework.core.io.DefaultResourceLoader;
 
 import com.example.spring_batch_demo.domain.customer.Customer;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class CustomerCsvItemReaderConfigTest {
 
     private final CustomerCsvItemReaderConfig config = new CustomerCsvItemReaderConfig();
 
     @Test
-    void customerReaderUsesDefaultClasspathWhenInputMissing() throws Exception {
-        FlatFileItemReader<Customer> reader = config.customerReader(new DefaultResourceLoader(), null);
+    void customerReaderRequiresNonBlankJobParameter() {
+        assertThrows(IllegalStateException.class, () -> config.customerReader(new DefaultResourceLoader(), null));
+    }
+
+    @Test
+    void customerReaderRejectsBlankJobParameter() {
+        assertThrows(IllegalStateException.class, () -> config.customerReader(new DefaultResourceLoader(), "   "));
+    }
+
+    @Test
+    void customerReaderReadsFromClasspathResource() throws Exception {
+        FlatFileItemReader<Customer> reader =
+                config.customerReader(new DefaultResourceLoader(), "classpath:customers.csv");
         reader.open(new org.springframework.batch.item.ExecutionContext());
         Customer first = reader.read();
         reader.close();
@@ -43,16 +56,5 @@ class CustomerCsvItemReaderConfigTest {
         assertNotNull(first);
         assertEquals(100L, first.id());
         assertEquals("Neo", first.name());
-    }
-
-    @Test
-    void customerReaderUsesDefaultClasspathWhenInputBlank() throws Exception {
-        FlatFileItemReader<Customer> reader = config.customerReader(new DefaultResourceLoader(), "   ");
-        reader.open(new org.springframework.batch.item.ExecutionContext());
-        Customer first = reader.read();
-        reader.close();
-
-        assertNotNull(first);
-        assertEquals(1L, first.id());
     }
 }

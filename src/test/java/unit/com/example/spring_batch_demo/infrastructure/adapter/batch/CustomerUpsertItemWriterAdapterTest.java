@@ -1,4 +1,4 @@
-package com.example.spring_batch_demo.infrastructure.batch;
+package com.example.spring_batch_demo.infrastructure.adapter.batch;
 
 import java.util.List;
 
@@ -8,7 +8,8 @@ import org.springframework.batch.item.Chunk;
 import com.example.spring_batch_demo.application.customer.port.CustomerUpsertPort;
 import com.example.spring_batch_demo.domain.customer.Customer;
 
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 class CustomerUpsertItemWriterAdapterTest {
 

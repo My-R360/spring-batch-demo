@@ -1,4 +1,6 @@
-package com.example.spring_batch_demo.domain.customer;
+package com.example.spring_batch_demo.domain.customer.policy;
+
+import com.example.spring_batch_demo.domain.customer.Customer;
 
 /**
  * Default import policy for the demo.
@@ -23,4 +25,3 @@ public class EmailAndNameCustomerImportPolicy implements CustomerImportPolicy {
         return new Customer(input.id(), uppercasedName, input.email());
     }
 }
-
