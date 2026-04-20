@@ -5,6 +5,7 @@ import java.util.List;
 import com.example.spring_batch_demo.application.customer.exceptions.ImportJobLaunchException;
 import com.example.spring_batch_demo.application.customer.exceptions.MissingInputFileException;
 import com.example.spring_batch_demo.application.customer.dto.CustomerImportResult;
+import com.example.spring_batch_demo.application.customer.dto.ImportAuditReport;
 import com.example.spring_batch_demo.application.customer.port.CustomerImportUseCase;
 import com.example.spring_batch_demo.presentation.api.exceptions.BatchJobApiExceptionHandler;
 import org.junit.jupiter.api.Test;
@@ -64,7 +65,7 @@ class BatchJobControllerWebMvcIntegrationTest {
     @Test
     void getStatusReturnsCompletedResult() throws Exception {
         when(useCase.getImportStatus(33L))
-                .thenReturn(new CustomerImportResult(33L, "COMPLETED", List.of(), 10L, 8L, 2L));
+                .thenReturn(new CustomerImportResult(33L, "COMPLETED", List.of(), 10L, 8L, 2L, 1L, List.of()));
 
         mockMvc.perform(get("/api/batch/customer/import/33/status"))
                 .andExpect(status().isOk())
@@ -72,7 +73,8 @@ class BatchJobControllerWebMvcIntegrationTest {
                 .andExpect(jsonPath("$.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.readCount").value(10))
                 .andExpect(jsonPath("$.writeCount").value(8))
-                .andExpect(jsonPath("$.skipCount").value(2));
+                .andExpect(jsonPath("$.skipCount").value(2))
+                .andExpect(jsonPath("$.filterCount").value(1));
     }
 
     @Test
@@ -86,7 +88,7 @@ class BatchJobControllerWebMvcIntegrationTest {
     @Test
     void getStatusReturnsInProgressJob() throws Exception {
         when(useCase.getImportStatus(50L))
-                .thenReturn(new CustomerImportResult(50L, "STARTED", List.of(), 5L, 3L, 0L));
+                .thenReturn(new CustomerImportResult(50L, "STARTED", List.of(), 5L, 3L, 0L, 0L, List.of()));
 
         mockMvc.perform(get("/api/batch/customer/import/50/status"))
                 .andExpect(status().isOk())
@@ -97,7 +99,7 @@ class BatchJobControllerWebMvcIntegrationTest {
     @Test
     void getStatusReturnsInternalServerErrorWhenFailed() throws Exception {
         when(useCase.getImportStatus(70L))
-                .thenReturn(new CustomerImportResult(70L, "FAILED", List.of("boom"), 0L, 0L, 0L));
+                .thenReturn(new CustomerImportResult(70L, "FAILED", List.of("boom"), 0L, 0L, 0L, 0L, List.of()));
 
         mockMvc.perform(get("/api/batch/customer/import/70/status"))
                 .andExpect(status().isInternalServerError())
@@ -109,5 +111,34 @@ class BatchJobControllerWebMvcIntegrationTest {
     void getStatusReturnsBadRequestForNonNumericJobExecutionId() throws Exception {
         mockMvc.perform(get("/api/batch/customer/import/not-a-number/status"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void getReportReturnsOk() throws Exception {
+        when(useCase.getImportAuditReport(eq(33L), eq(50), eq(0)))
+                .thenReturn(new ImportAuditReport(33L, "COMPLETED", 2L, List.of()));
+
+        mockMvc.perform(get("/api/batch/customer/import/33/report"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.jobExecutionId").value(33))
+                .andExpect(jsonPath("$.jobStatus").value("COMPLETED"))
+                .andExpect(jsonPath("$.totalRejectedRows").value(2));
+    }
+
+    @Test
+    void getReportPassesLimitAndOffsetQueryParams() throws Exception {
+        when(useCase.getImportAuditReport(eq(33L), eq(5), eq(10)))
+                .thenReturn(new ImportAuditReport(33L, "COMPLETED", 0L, List.of()));
+
+        mockMvc.perform(get("/api/batch/customer/import/33/report").param("limit", "5").param("offset", "10"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void getReportReturnsNotFoundWhenUnknown() throws Exception {
+        when(useCase.getImportAuditReport(eq(999L), eq(50), eq(0))).thenReturn(null);
+
+        mockMvc.perform(get("/api/batch/customer/import/999/report"))
+                .andExpect(status().isNotFound());
     }
 }

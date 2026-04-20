@@ -9,7 +9,10 @@ import java.util.Set;
 import com.example.spring_batch_demo.application.customer.CustomerImportInputFile;
 import com.example.spring_batch_demo.application.customer.exceptions.ImportJobLaunchException;
 import com.example.spring_batch_demo.application.customer.dto.CustomerImportResult;
+import com.example.spring_batch_demo.application.customer.dto.ImportAuditReport;
 import com.example.spring_batch_demo.application.customer.port.CustomerImportUseCase;
+import com.example.spring_batch_demo.application.customer.port.ImportAuditPort;
+import com.example.spring_batch_demo.domain.importaudit.RejectedRow;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.ExitStatus;
@@ -27,18 +30,24 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class SpringBatchCustomerImportUseCase implements CustomerImportUseCase {
 
+    private static final int STATUS_REJECTED_SAMPLE = 10;
+    private static final int REPORT_LIMIT_MAX = 500;
+
     private final JobLauncher jobLauncher;
     private final JobExplorer jobExplorer;
     private final Job customerJob;
+    private final ImportAuditPort importAuditPort;
 
     public SpringBatchCustomerImportUseCase(
             @Qualifier("asyncJobLauncher") JobLauncher jobLauncher,
             JobExplorer jobExplorer,
-            @Qualifier("customerJob") Job customerJob
+            @Qualifier("customerJob") Job customerJob,
+            ImportAuditPort importAuditPort
     ) {
         this.jobLauncher = jobLauncher;
         this.jobExplorer = jobExplorer;
         this.customerJob = customerJob;
+        this.importAuditPort = importAuditPort;
     }
 
     @Override
@@ -71,12 +80,18 @@ public class SpringBatchCustomerImportUseCase implements CustomerImportUseCase {
         List<String> failures = resolveFailureMessages(execution);
 
         Collection<StepExecution> steps = execution.getStepExecutions();
-        long readCount = 0, writeCount = 0, skipCount = 0;
+        long readCount = 0;
+        long writeCount = 0;
+        long skipCount = 0;
+        long filterCount = 0;
         for (StepExecution step : steps) {
             readCount += step.getReadCount();
             writeCount += step.getWriteCount();
             skipCount += step.getSkipCount();
+            filterCount += step.getFilterCount();
         }
+
+        List<RejectedRow> rejectedSample = importAuditPort.loadRows(execution.getId(), STATUS_REJECTED_SAMPLE, 0);
 
         return new CustomerImportResult(
                 execution.getId(),
@@ -84,7 +99,27 @@ public class SpringBatchCustomerImportUseCase implements CustomerImportUseCase {
                 failures,
                 readCount,
                 writeCount,
-                skipCount
+                skipCount,
+                filterCount,
+                rejectedSample
+        );
+    }
+
+    @Override
+    public ImportAuditReport getImportAuditReport(Long jobExecutionId, int limit, int offset) {
+        JobExecution execution = jobExplorer.getJobExecution(jobExecutionId);
+        if (execution == null) {
+            return null;
+        }
+        int safeLimit = Math.clamp(limit, 1, REPORT_LIMIT_MAX);
+        int safeOffset = Math.max(0, offset);
+        long total = importAuditPort.countRejected(jobExecutionId);
+        List<RejectedRow> rows = importAuditPort.loadRows(jobExecutionId, safeLimit, safeOffset);
+        return new ImportAuditReport(
+                execution.getId(),
+                execution.getStatus().toString(),
+                total,
+                rows
         );
     }
 

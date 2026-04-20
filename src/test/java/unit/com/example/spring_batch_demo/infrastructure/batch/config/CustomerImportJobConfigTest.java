@@ -10,6 +10,7 @@ import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import com.example.spring_batch_demo.domain.customer.Customer;
+import com.example.spring_batch_demo.infrastructure.adapter.batch.CustomerImportAuditStepListener;
 import com.example.spring_batch_demo.infrastructure.adapter.batch.JobCompletionListener;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -27,9 +28,10 @@ class CustomerImportJobConfigTest {
         ItemProcessor<Customer, Customer> processor = mock(ItemProcessor.class);
         ItemWriter<Customer> writer = mock(ItemWriter.class);
         JobCompletionListener listener = new JobCompletionListener();
+        CustomerImportAuditStepListener auditListener = mock(CustomerImportAuditStepListener.class);
 
         CustomerImportJobConfig config = new CustomerImportJobConfig(
-                jobRepository, tx, reader, processor, writer, listener
+                jobRepository, tx, reader, processor, writer, listener, auditListener
         );
 
         Job job = config.customerJob();

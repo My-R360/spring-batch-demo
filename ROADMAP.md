@@ -73,11 +73,11 @@ Phase 1 (async API + batch fault tolerance) ✅
 
 | Item | Status | Notes |
 |------|--------|--------|
-| `SkipListener` (and related listeners) to capture skips/rejects + reasons | ⬜ | |
-| Domain audit model (`ImportAuditReport`, `RejectedRow` or equivalent) | ⬜ | |
-| Application port `ImportAuditPort` + persistence adapter | ⬜ | Oracle tables e.g. `IMPORT_AUDIT` / rejected-row detail |
-| Extend status (and/or new `GET .../report`) with audit summary | ⬜ | Builds on Phase 1 polling |
-| RUNBOOK / SD-DESIGN / SD-ARCHITECTURE updates | ⬜ | |
+| `SkipListener` + `ItemProcessListener` to capture skips/rejects + reasons | ✅ | `CustomerImportAuditStepListener` |
+| Domain audit model (`RejectedRow`, `ImportRejectionCategory`) + application `ImportAuditReport` | ✅ | `domain.importaudit`, `application.customer.dto` |
+| Application port `ImportAuditPort` + `JdbcImportAuditPortAdapter` | ✅ | Oracle table `IMPORT_REJECTED_ROW` in `schema.sql` |
+| Extend status + `GET .../report` with audit summary | ✅ | `filterCount`, `rejectedSample`, paginated report |
+| RUNBOOK / SD-DESIGN / SD-ARCHITECTURE updates | ✅ | |
 
 ---
 
@@ -128,7 +128,7 @@ These are **not** all committed phases; they are high-value directions to consid
 2. **Security** — If the API leaves demo-only use: authentication, authorization, rate limits, and optional IP allowlists (Slidev “improve next”).
 3. **Observability** — Micrometer timers/counters for launches, completions, skips, DLQ depth (after Phase 3); structured logging fields (`jobExecutionId`, correlation id).
 4. **API ergonomics** — Optional `Location` / `Retry-After` headers on 202; correlation id returned with `jobExecutionId` for tracing through logs and future queues.
-5. **Schema lifecycle** — Flyway/Liquibase for `CUSTOMER` + batch metadata + future audit tables; reduces profile-only DDL drift.
+5. **Schema lifecycle** — Flyway/Liquibase for `CUSTOMER` + batch metadata + `IMPORT_REJECTED_ROW`; reduces profile-only DDL drift.
 6. **Idempotency** — Document or enforce job-parameter strategy for “same file re-run” vs accidental duplicate launches when multiple publishers exist (especially with Phase 3).
 7. **Horizontal scale** — After RabbitMQ: competing consumers with clear job-instance isolation and DB migration strategy for embedded vs external `JobRepository` (only if multi-instance becomes a goal).
 
@@ -139,4 +139,4 @@ These are **not** all committed phases; they are high-value directions to consid
 - After completing a phase, flip ⬜ → ✅ and add a pointer to the `PROMPTS.md` log entry.
 - Prefer small, shippable slices within each phase so `main` stays deployable.
 
-Last reviewed: **2026-04-16** (created; Phase 1 marked complete per implementation + `PROMPTS.md` §20–21).
+Last reviewed: **2026-04-19** (Phase 2 audit/reporting implemented; see `PROMPTS.md` §32).
