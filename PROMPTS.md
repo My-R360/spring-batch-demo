@@ -557,6 +557,37 @@ These can be done alongside any phase:
 
 ---
 
+### 32) Phase 2 — import audit (parse skips + policy filters)
+
+- **Prompt summary**: Implement reporting and audit pipeline per `ROADMAP.md` Phase 2: persist rejected rows, extend status, add report API, document and test end-to-end.
+- **Changes done**:
+  - **Domain**: `ImportRejectionCategory`, `RejectedRow` in `domain/importaudit/`.
+  - **Application**: `ImportAuditPort`, `ImportAuditReport`, `ImportRejectionReasons`; `CustomerImportUseCase.getImportAuditReport`; `CustomerImportResult` extended with `filterCount` and `rejectedSample`.
+  - **Infrastructure**: `JdbcImportAuditPortAdapter` (`PROPAGATION_REQUIRES_NEW` via `TransactionTemplate`); `CustomerImportAuditStepListener` (`SkipListener` + `ItemProcessListener`, `StepSynchronizationManager`); `CustomerImportAuditListenerConfig`; step wiring in `CustomerImportJobConfig`; Oracle DDL `IMPORT_REJECTED_ROW` in `schema.sql`.
+  - **REST**: `GET /api/batch/customer/import/{id}/report` in `BatchJobController`.
+  - **Persistence (profile `audit-it`)**: `NoOpCustomerUpsertPortAdapter` (`@Profile("audit-it")`); `OracleCustomerUpsertPortAdapter` annotated `@Profile("!audit-it")` so H2 smoke does not execute Oracle `MERGE`.
+  - **Tests**: `CustomerImportBatchAuditIntegrationTest` (`audit-it` profile + H2), `CustomerImportAuditStepListenerTest`, updated WebMvc/use-case/job-config tests.
+  - **Resources**: `application-audit-it.properties`, `schema-h2-import-audit-it.sql` under `src/main/resources` (shared by tests and `spring-boot:run`).
+  - **Docs**: `README.md`, `RUNBOOK.md`, `SD-DESIGN.md`, `SD-ARCHITECTURE.md`, `ROADMAP.md`, `slidev/slides.md`.
+- **Outcome**: Clients can poll `filterCount` / `rejectedSample` and fetch paginated audit rows; `PARSE_SKIP` vs `POLICY_FILTER` is explicit in persisted data.
+
+---
+
+### 33) Verify tests / prod flows + Phase 2 Slidev deck
+
+- **Prompt summary**: Confirm automated tests and live HTTP flows; add a dedicated Phase 2 deck like the main deck; verify Slidev builds.
+- **Changes done**:
+  - **`slidev/slides-phase2.md`**: standalone Phase 2 narrative (categories, port, DDL, listeners, `REQUIRES_NEW`, REST status/report, `audit-it`, tests, roadmap).
+  - **`slidev/package.json`**: `build:phase2`, `build:all`, `dev:phase2`; **`--out dist`** / **`--out dist-phase2`** so builds do not clobber each other.
+  - **`slidev/README.md`**, **`slidev/PRESENTATION.md`**, **`.cursor/rules/slidev-deck.mdc`**: document dual decks and `npm run build:all`.
+  - **`slidev/slides.md`**: closing slide links to Phase 2 deck.
+  - **`src/main/resources/customers-phase2-audit-sample.csv`**: classpath sample for curl smoke (same shape as integration test CSV).
+  - **`RUNBOOK.md` §4.3**: curl example for `audit-it` smoke.
+  - **Verification**: `./mvnw clean verify`; `npm run build:all`; manual **`audit-it`** smoke on port **19082** — POST import → poll status (`filterCount`, `rejectedSample`) → GET report (`totalRejectedRows`, `PARSE_SKIP` / `POLICY_FILTER` rows).
+- **Outcome**: Phase 2 is presentable on its own; CI-style checks green; local HTTP path validated without Oracle Docker.
+
+---
+
 ### 31) Exception packages + rename `CustomerImportDefaults` → `CustomerImportInputFile`
 
 - **Prompt summary**: Clarify handler vs application exceptions; rename `presentation/api/exception` → `exceptions`; move `ImportJobLaunchException` / `MissingInputFileException` under `application/customer/exceptions`; clarify what replaces “defaults.”

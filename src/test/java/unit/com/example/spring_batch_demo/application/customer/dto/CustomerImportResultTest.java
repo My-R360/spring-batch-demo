@@ -11,8 +11,8 @@ class CustomerImportResultTest {
 
     @Test
     void recordFieldsAndEqualityWork() {
-        CustomerImportResult r1 = new CustomerImportResult(10L, "COMPLETED", List.of(), 20L, 18L, 2L);
-        CustomerImportResult r2 = new CustomerImportResult(10L, "COMPLETED", List.of(), 20L, 18L, 2L);
+        CustomerImportResult r1 = new CustomerImportResult(10L, "COMPLETED", List.of(), 20L, 18L, 2L, 0L, List.of());
+        CustomerImportResult r2 = new CustomerImportResult(10L, "COMPLETED", List.of(), 20L, 18L, 2L, 0L, List.of());
 
         assertEquals(10L, r1.jobExecutionId());
         assertEquals("COMPLETED", r1.status());

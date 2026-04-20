@@ -3,6 +3,7 @@ package com.example.spring_batch_demo.application.customer.port;
 import com.example.spring_batch_demo.application.customer.exceptions.ImportJobLaunchException;
 import com.example.spring_batch_demo.application.customer.exceptions.MissingInputFileException;
 import com.example.spring_batch_demo.application.customer.dto.CustomerImportResult;
+import com.example.spring_batch_demo.application.customer.dto.ImportAuditReport;
 
 /**
  * Application-level use case: import customers from an input file into persistence.
@@ -30,4 +31,14 @@ public interface CustomerImportUseCase {
      * @return an immutable result with execution status, progress counts, and failure messages
      */
     CustomerImportResult getImportStatus(Long jobExecutionId);
+
+    /**
+     * Returns persisted per-row audit rows for a job execution (paginated).
+     *
+     * @param jobExecutionId execution id from {@link #launchImport}
+     * @param limit          maximum rows to return (clamped by the implementation)
+     * @param offset         number of rows to skip from the start of the audit list
+     * @return report or {@code null} if the execution id is unknown
+     */
+    ImportAuditReport getImportAuditReport(Long jobExecutionId, int limit, int offset);
 }

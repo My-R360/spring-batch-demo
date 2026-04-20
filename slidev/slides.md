@@ -93,18 +93,18 @@ flowchart LR
 
 # REST API (current)
 
-- `POST /api/batch/customer/import?inputFile=` — optional `classpath:` / `file:` resource
-- `GET /api/batch/customer/import/{jobExecutionId}/status`
-  - **404** — unknown id
-  - **500** — `status == FAILED` (body still JSON result)
-  - **200** — other states (including `COMPLETED` with warnings in `failures`)
+- `POST /api/batch/customer/import?inputFile=` — required `classpath:` / `file:` resource (400 if missing/blank)
+- `GET /api/batch/customer/import/{jobExecutionId}/status` — `readCount` / `writeCount` / `skipCount` / **`filterCount`** + **`rejectedSample`**
+- `GET /api/batch/customer/import/{jobExecutionId}/report?limit=&offset=` — paginated **`IMPORT_REJECTED_ROW`** audit (`ImportAuditReport`)
+- **HTTP (status + report):** **404** unknown id; **500** when batch `FAILED` (body still JSON); **200** otherwise (including `COMPLETED` with warnings in `failures` on status)
 
 ---
 
 # Faults & polling
 
 - **Retry:** `TransientDataAccessException` (bounded + backoff)
-- **Skip:** malformed CSV (`FlatFileParseException`)
+- **Skip:** malformed CSV (`FlatFileParseException`) → persisted **`PARSE_SKIP`** audit rows
+- **Filter:** policy returns `null` → **`filterCount`** + **`POLICY_FILTER`** audit rows
 - **`failures`:** from persisted **exit descriptions** (not in-memory only) — survives `JobExplorer` reload
 
 ---
@@ -125,6 +125,12 @@ See `RUNBOOK.md` for Docker and JDBC URLs.
 
 # What to improve next
 
-- Reporting / audit pipeline (`ROADMAP.md` Phase 2)
+- Phase 3: RabbitMQ command path (`ROADMAP.md`)
 - Optional `CustomerSourcePort` (abstract CSV)
 - CI (GitHub Actions) for `./mvnw clean verify`
+
+---
+
+# Phase 2 deck
+
+Deep dive on **audit + reporting**: **`slides-phase2.md`** — `npm run dev:phase2` / `npm run build:phase2` (output **`dist-phase2/`**).

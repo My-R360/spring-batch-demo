@@ -31,7 +31,7 @@ Dependency rule:
 
 **DTOs on use-case contracts:** Types such as `CustomerImportResult` live in **`application.customer.dto`** as the **return shape** of `CustomerImportUseCase` (under **`application.customer.port`**). Infrastructure adapters (e.g. `SpringBatchCustomerImportUseCase`) **construct** those records — still an inward dependency (infra → application API), not application “calling down” into infra.
 
-They are **not** domain models: they carry **job / polling** concerns (`BatchStatus`, read/skip/write counters). **`Customer`** stays in **domain** as the business row shape.
+They are **not** domain models: they carry **job / polling** concerns (`BatchStatus`, read/skip/write/filter counters, optional `rejectedSample`). **`Customer`** stays in **domain** as the business row shape. Row-level audit values (`RejectedRow`, `ImportRejectionCategory`) live in **`domain.importaudit`** and are persisted through **`ImportAuditPort`** (application) implemented by JDBC in infrastructure.
 
 ## Current code mapping (as-is)
 
@@ -41,17 +41,18 @@ Today, the project is functional and has been refactored into onion-style layers
   - `presentation/api/BatchJobController.java` (POST → 202 async launch; GET → poll status)
   - `presentation/api/exceptions/BatchJobApiExceptionHandler.java` (scoped `ProblemDetail` for this API)
 - Application:
-  - `application/customer/port/CustomerImportUseCase.java`, `CustomerUpsertPort.java`
-  - `application/customer/dto/CustomerImportResult.java` (progress + failures)
+  - `application/customer/port/CustomerImportUseCase.java`, `CustomerUpsertPort.java`, `ImportAuditPort.java`
+  - `application/customer/dto/CustomerImportResult.java`, `ImportAuditReport.java` (progress + audit)
   - `application/customer/CustomerImportInputFile.java`; `application/customer/exceptions/` (`ImportJobLaunchException`, `MissingInputFileException`)
 - Domain:
   - `domain/customer/Customer.java`
   - `domain/customer/policy/CustomerImportPolicy.java`, `EmailAndNameCustomerImportPolicy.java`
+  - `domain/importaudit/` (`ImportRejectionCategory`, `RejectedRow`)
   - `domain/validation/package-info.java` (cross-cutting validation placeholder)
 - Common: `common/package-info.java` (JDK-only shared helpers)
 - Infrastructure:
-  - **Batch `@Configuration`**: `infrastructure/batch/config/CustomerImportJobConfig.java`, `CustomerCsvItemReaderConfig.java`
-  - **Adapters**: `infrastructure/adapter/batch/` — `SpringBatchCustomerImportUseCase`, processor/writer adapters, `JobCompletionListener`; `infrastructure/adapter/persistence/OracleCustomerUpsertPortAdapter.java`
+  - **Batch `@Configuration`**: `infrastructure/batch/config/CustomerImportJobConfig.java`, `CustomerCsvItemReaderConfig.java`, `CustomerImportAuditListenerConfig.java`
+  - **Adapters**: `infrastructure/adapter/batch/` — `SpringBatchCustomerImportUseCase`, processor/writer adapters, `JobCompletionListener`, `CustomerImportAuditStepListener`; `infrastructure/adapter/persistence/OracleCustomerUpsertPortAdapter.java` (active when profile is not `audit-it`), `NoOpCustomerUpsertPortAdapter.java` (`audit-it` H2 smoke), `JdbcImportAuditPortAdapter.java`
   - **Config**: `infrastructure/config/` — `AsyncJobLauncherConfig`, `JdbcConfig`, `DomainPolicyConfig`
   - **Diagnostics**: `infrastructure/diagnostics/DevStartupDiagnostics.java`
 
@@ -71,15 +72,20 @@ com.example.spring_batch_demo
 │   │   └── policy
 │   │       ├── CustomerImportPolicy.java
 │   │       └── EmailAndNameCustomerImportPolicy.java
+│   ├── importaudit
+│   │   ├── ImportRejectionCategory.java
+│   │   └── RejectedRow.java
 │   └── validation
 │       └── package-info.java
 ├── application
 │   └── customer
 │       ├── dto
-│       │   └── CustomerImportResult.java
+│       │   ├── CustomerImportResult.java
+│       │   └── ImportAuditReport.java
 │       ├── port
 │       │   ├── CustomerImportUseCase.java
 │       │   ├── CustomerUpsertPort.java
+│       │   ├── ImportAuditPort.java
 │       │   └── CustomerSourcePort.java (optional)
 │       ├── CustomerImportInputFile.java
 │       └── exceptions
@@ -95,9 +101,11 @@ com.example.spring_batch_demo
 │   │   │   ├── SpringBatchCustomerImportUseCase.java
 │   │   │   ├── CustomerItemProcessorAdapter.java
 │   │   │   ├── CustomerUpsertItemWriterAdapter.java
-│   │   │   └── JobCompletionListener.java
+│   │   │   ├── JobCompletionListener.java
+│   │   │   └── CustomerImportAuditStepListener.java
 │   │   └── persistence
-│   │       └── OracleCustomerUpsertPortAdapter.java
+│   │       ├── OracleCustomerUpsertPortAdapter.java
+│   │       └── JdbcImportAuditPortAdapter.java
 │   ├── config
 │   │   ├── AsyncJobLauncherConfig.java
 │   │   ├── JdbcConfig.java
@@ -133,7 +141,7 @@ Notes:
    - Processor delegates to domain policy → returns Customer or filters
    - Writer uses application port → infrastructure adapter upserts to Oracle
    - **Retry**: transient DB errors retried 3x with exponential backoff
-   - **Skip**: malformed CSV rows skipped (up to 100)
+   - **Skip**: configured exception types on read/process/write (e.g. `FlatFileParseException`, line-length / token-count issues, `NumberFormatException`, `DataIntegrityViolationException`) up to shared `skipLimit` 100; each skip can be persisted as `PARSE_SKIP`, `READ_SKIPPED`, `PROCESS_SKIPPED`, or `WRITE_SKIPPED` via `CustomerImportAuditStepListener`
 
 ### Status polling
 5. HTTP GET → `BatchJobController` → `CustomerImportUseCase.getImportStatus()`
