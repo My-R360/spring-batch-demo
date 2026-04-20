@@ -43,3 +43,26 @@ Skim these before presenting:
 | Async launcher | `src/main/java/.../infrastructure/config/AsyncJobLauncherConfig.java` |
 | Listener logs | `src/main/java/.../infrastructure/batch/JobCompletionListener.java` |
 | Tests | `src/test/java/unit/...`, `src/test/java/integration/...` |
+
+---
+
+## Phase 2 deck (`slides-phase2.md`)
+
+Use when the audience already knows Phase 1 (or after `slides.md` in a longer session).
+
+**Suggested order (25–35 min):** Phase 1 vs 2 table → chunk hook ASCII → categories → **full HTTP flows** (POST 202/400/500, GET status 200/404/500, GET report + pagination) → request/response JSON slides → HTTP cheat sheet → types table → Mermaid deps + lifecycle → DDL table → listener + `REQUIRES_NEW` → profiles → curl chain → verify → roadmap.
+
+**Presenter files:**
+
+| Topic | Path |
+|--------|------|
+| Audit listener | `.../infrastructure/adapter/batch/CustomerImportAuditStepListener.java` |
+| Audit port + JDBC | `.../application/customer/port/ImportAuditPort.java`, `.../JdbcImportAuditPortAdapter.java` |
+| Step wiring (listeners) | `.../infrastructure/batch/config/CustomerImportJobConfig.java`, `CustomerImportAuditListenerConfig.java` |
+| DTOs | `ImportAuditReport.java`, extended `CustomerImportResult.java` |
+| Domain audit types | `domain/importaudit/` |
+| H2 smoke profile | `application-audit-it.properties`, `NoOpCustomerUpsertPortAdapter.java` |
+
+```bash
+cd slidev && npm run dev:phase2
+```

@@ -4,6 +4,7 @@ import java.util.Map;
 
 import com.example.spring_batch_demo.application.customer.exceptions.ImportJobLaunchException;
 import com.example.spring_batch_demo.application.customer.dto.CustomerImportResult;
+import com.example.spring_batch_demo.application.customer.dto.ImportAuditReport;
 import com.example.spring_batch_demo.application.customer.port.CustomerImportUseCase;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -53,6 +54,9 @@ public class BatchJobController {
      * {@code status} is {@code FAILED} (body is still {@link CustomerImportResult} so clients
      * keep counters and {@code failures}); {@code 200} for all other known states including
      * {@code COMPLETED} with a non-empty {@code failures} list (warnings vs hard failure).</p>
+     *
+     * <p>Also includes {@code filterCount} (policy-filtered rows) and a small {@code rejectedSample}
+     * from persisted audit rows; use {@code GET .../report} for the full paginated list.</p>
      */
     @GetMapping("/customer/import/{jobExecutionId}/status")
     public ResponseEntity<CustomerImportResult> getImportStatus(
@@ -66,5 +70,30 @@ public class BatchJobController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(result);
         }
         return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Returns persisted per-row import audit (parse skips and policy filters) for a job execution.
+     *
+     * <p>HTTP mapping matches status: {@code 404} if unknown; {@code 500} when batch status is
+     * {@code FAILED}; {@code 200} otherwise (including partial audit while the job is still running).</p>
+     *
+     * @param limit  max rows (default 50, capped server-side)
+     * @param offset rows to skip for pagination (default 0)
+     */
+    @GetMapping("/customer/import/{jobExecutionId}/report")
+    public ResponseEntity<ImportAuditReport> getImportAuditReport(
+            @PathVariable Long jobExecutionId,
+            @RequestParam(name = "limit", defaultValue = "50") int limit,
+            @RequestParam(name = "offset", defaultValue = "0") int offset
+    ) {
+        ImportAuditReport report = importUseCase.getImportAuditReport(jobExecutionId, limit, offset);
+        if (report == null) {
+            return ResponseEntity.notFound().build();
+        }
+        if ("FAILED".equalsIgnoreCase(report.jobStatus())) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(report);
+        }
+        return ResponseEntity.ok(report);
     }
 }

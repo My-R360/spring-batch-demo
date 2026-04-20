@@ -8,10 +8,12 @@ import com.example.spring_batch_demo.application.customer.port.CustomerUpsertPor
 import com.example.spring_batch_demo.domain.customer.Customer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Component;
 
 @Component
+@Profile("!audit-it")
 @Slf4j
 @RequiredArgsConstructor
 public class OracleCustomerUpsertPortAdapter implements CustomerUpsertPort {

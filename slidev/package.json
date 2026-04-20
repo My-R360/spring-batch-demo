@@ -3,8 +3,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "slidev build slides.md",
-    "dev": "slidev slides.md"
+    "build": "slidev build slides.md --out dist",
+    "build:phase2": "slidev build slides-phase2.md --out dist-phase2",
+    "build:all": "slidev build slides.md --out dist && slidev build slides-phase2.md --out dist-phase2 && slidev build flows.md --out dist-flows",
+    "build:flows": "slidev build flows.md --out dist-flows",
+    "dev": "slidev slides.md",
+    "dev:phase2": "slidev slides-phase2.md",
+    "dev:flows": "slidev flows.md"
   },
   "devDependencies": {
     "@slidev/cli": "52.14.2",
