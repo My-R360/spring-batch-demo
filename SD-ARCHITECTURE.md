@@ -38,12 +38,12 @@ They are **not** domain models: they carry **job / polling** concerns (`BatchSta
 Today, the project is functional and has been refactored into onion-style layers. Key files:
 
 - Presentation:
-  - `presentation/api/BatchJobController.java` (POST → 202 async launch; GET → poll status)
+  - `presentation/api/BatchJobController.java` (POST → 202 enqueue or in-process launch; GET correlation → job id; GET → poll status/report)
   - `presentation/api/exceptions/BatchJobApiExceptionHandler.java` (scoped `ProblemDetail` for this API)
 - Application:
-  - `application/customer/port/CustomerImportUseCase.java`, `CustomerUpsertPort.java`, `ImportAuditPort.java`
-  - `application/customer/dto/CustomerImportResult.java`, `ImportAuditReport.java` (progress + audit)
-  - `application/customer/CustomerImportInputFile.java`; `application/customer/exceptions/` (`ImportJobLaunchException`, `MissingInputFileException`)
+  - `application/customer/port/CustomerImportUseCase.java`, `CustomerUpsertPort.java`, `ImportAuditPort.java`, `CustomerImportCommandPublisher.java`, `CustomerImportInputFileValidator.java`, `CustomerImportInputFileStagingPort.java`, `ImportLaunchCorrelationPort.java`
+  - `application/customer/dto/CustomerImportResult.java`, `ImportAuditReport.java`, `CustomerImportCommand.java`, `CustomerImportEnqueueResponse.java` (progress + audit + enqueue body)
+  - `application/customer/CustomerImportInputFile.java`; `application/customer/exceptions/` (`ImportJobLaunchException`, `InvalidInputFileResourceException`, `MissingInputFileException`, `ImportCommandPublishException`, `InvalidCorrelationIdException`)
 - Domain:
   - `domain/customer/Customer.java`
   - `domain/customer/policy/CustomerImportPolicy.java`, `EmailAndNameCustomerImportPolicy.java`
@@ -52,8 +52,8 @@ Today, the project is functional and has been refactored into onion-style layers
 - Common: `common/package-info.java` (JDK-only shared helpers)
 - Infrastructure:
   - **Batch `@Configuration`**: `infrastructure/batch/config/CustomerImportJobConfig.java`, `CustomerCsvItemReaderConfig.java`, `CustomerImportAuditListenerConfig.java`
-  - **Adapters**: `infrastructure/adapter/batch/` — `SpringBatchCustomerImportUseCase`, processor/writer adapters, `JobCompletionListener`, `CustomerImportAuditStepListener`; `infrastructure/adapter/persistence/OracleCustomerUpsertPortAdapter.java` (active when profile is not `audit-it`), `NoOpCustomerUpsertPortAdapter.java` (`audit-it` H2 smoke), `JdbcImportAuditPortAdapter.java`
-  - **Config**: `infrastructure/config/` — `AsyncJobLauncherConfig`, `JdbcConfig`, `DomainPolicyConfig`
+  - **Adapters**: `infrastructure/adapter/batch/` — `SpringBatchCustomerImportUseCase`, processor/writer adapters, `JobCompletionListener`, `CustomerImportAuditStepListener`; `infrastructure/adapter/persistence/OracleCustomerUpsertPortAdapter.java` (active when profile is not `audit-it` / `amqp-it`), `NoOpCustomerUpsertPortAdapter.java` (`audit-it` / `amqp-it` H2 smoke), `JdbcImportAuditPortAdapter.java`, `JdbcImportLaunchCorrelationAdapter.java`; `infrastructure/adapter/messaging/` — `AmqpCustomerImportCommandPublisher`, `DirectCustomerImportCommandPublisher`, `CustomerImportJobLaunchListener`; `infrastructure/adapter/resource/` — Spring `Resource` validation/resolution and local classpath staging for `inputFile`
+  - **Config**: `infrastructure/config/` — `AsyncJobLauncherConfig`, `JdbcConfig`, `DomainPolicyConfig`, `CustomerImportLocalStagingProperties`, `messaging/CustomerImportRabbitConfig.java`, `messaging/MessagingConfigurationBeans.java`, `messaging/CustomerImportMessagingProperties.java`
   - **Diagnostics**: `infrastructure/diagnostics/DevStartupDiagnostics.java`
 
 ## Target package structure (approved direction)
@@ -85,10 +85,13 @@ com.example.spring_batch_demo
 │       ├── port
 │       │   ├── CustomerImportUseCase.java
 │       │   ├── CustomerUpsertPort.java
+│       │   ├── CustomerImportInputFileValidator.java
+│       │   ├── CustomerImportInputFileStagingPort.java
 │       │   ├── ImportAuditPort.java
 │       │   └── CustomerSourcePort.java (optional)
 │       ├── CustomerImportInputFile.java
 │       └── exceptions
+│           ├── InvalidInputFileResourceException.java
 │           ├── ImportJobLaunchException.java
 │           └── MissingInputFileException.java
 ├── infrastructure
@@ -103,11 +106,16 @@ com.example.spring_batch_demo
 │   │   │   ├── CustomerUpsertItemWriterAdapter.java
 │   │   │   ├── JobCompletionListener.java
 │   │   │   └── CustomerImportAuditStepListener.java
-│   │   └── persistence
-│   │       ├── OracleCustomerUpsertPortAdapter.java
-│   │       └── JdbcImportAuditPortAdapter.java
+│   │   ├── persistence
+│   │   │   ├── OracleCustomerUpsertPortAdapter.java
+│   │   │   └── JdbcImportAuditPortAdapter.java
+│   │   └── resource
+│   │       ├── CustomerImportResourceResolver.java
+│   │       ├── LocalClasspathCustomerImportInputFileStagingAdapter.java
+│   │       └── SpringResourceCustomerImportInputFileValidator.java
 │   ├── config
 │   │   ├── AsyncJobLauncherConfig.java
+│   │   ├── CustomerImportLocalStagingProperties.java
 │   │   ├── JdbcConfig.java
 │   │   └── DomainPolicyConfig.java
 │   └── diagnostics
@@ -123,6 +131,7 @@ Notes:
 - Spring Batch **wiring** (`Job`/`Step` builders, `@StepScope` reader bean) lives under **`infrastructure.batch.config`**.
 - Spring Batch **SPI adapters** and the async use-case implementation live under **`infrastructure.adapter.batch`**.
 - Oracle/JDBC port implementation lives under **`infrastructure.adapter.persistence`**.
+- Spring `Resource` validation/resolution and local classpath staging for `inputFile` live under **`infrastructure.adapter.resource`**.
 - **Two “Config” classes in batch:** `CustomerImportJobConfig` owns the **job + fault-tolerant step**; `CustomerCsvItemReaderConfig` owns the **`@StepScope` reader** (separate bean lifecycle from the job graph).
 - **Diagnostics** (`DevStartupDiagnostics`): dev-only JDBC probes (current user, table visibility) for operators.
 - **Oracle upsert adapter** (`OracleCustomerUpsertPortAdapter`): implements `CustomerUpsertPort` with `MERGE` SQL.
@@ -169,4 +178,3 @@ Notes:
   `https://dev.to/yasmine_ddec94f4d4/onion-architecture-in-domain-driven-design-ddd-35gn`
   - Frames Onion as a way to **protect the domain model** via **dependency inversion** and clear separation of concerns.
   - Useful takeaway for this repo: define ports/interfaces inward, implement adapters outward.
-

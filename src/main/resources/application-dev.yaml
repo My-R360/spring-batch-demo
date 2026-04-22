@@ -1,0 +1,5 @@
+# Clears `spring.autoconfigure.exclude` from the base `application.properties` so AMQP
+# auto-configuration runs in `dev` (RabbitMQ required).
+spring:
+  autoconfigure:
+    exclude: []

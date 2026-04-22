@@ -62,5 +62,6 @@ build/
 PROMPTS.md
 AGENTS.md
 
-### Slidev (local deck; do not commit) ###
-slidev/
+### Slidev runtime/build artifacts ###
+slidev/node_modules/
+slidev/dist*/

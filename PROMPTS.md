@@ -600,6 +600,26 @@ These can be done alongside any phase:
 
 ---
 
+### 32) Postman collection — Phase 3 (enqueue + by-correlation)
+
+- **Prompt summary**: Update Postman queries for Phase 3.
+- **Changes done**:
+  - **`docs/postman/customer-import-api.json`**: added (RUNBOOK path); collection variables `correlationId` + `jobExecutionId`; POST tests/assertions for `CustomerImportEnqueueResponse` (`QUEUED` / `STARTED`); scripts persist `correlationId` and optional `jobExecutionId`; new folder **Resolve job (Phase 3)** with `GET …/by-correlation/{{correlationId}}/job`; validation requests for invalid UUID (400) and unknown UUID (404); collection description documents **503** on publish failure.
+  - **`spring-batch-demo.postman_collection.json`**: kept in sync with the same v2.1 JSON.
+- **Outcome**: Postman matches async enqueue + correlation resolution flow; canonical import path is under `docs/postman/`.
+
+---
+
+### 33) FAILED import — FlatFileItemReader / classpath on async batch thread
+
+- **Prompt summary**: After Phase 3 import, status showed **FAILED** with `ItemStreamException` / `IllegalStateException: Input resource must…` on the reader.
+- **Root cause**: Jobs launched from the Rabbit listener use `TaskExecutorJobLauncher`; the step runs on a **`batch-*`** worker thread where `ResourceLoader.getResource("classpath:…")` can resolve to a **non-existent** `Resource` (context `ClassLoader` differs from the app’s), so `FlatFileItemReader` fails on open.
+- **Changes done**:
+  - **`CustomerCsvItemReaderConfig`**: for `classpath:` (non-`classpath*:`) locations, resolve with `new ClassPathResource(path, CustomerCsvItemReaderConfig.class)` when it exists; otherwise delegate to `ResourceLoader`. Reverted mistaken `jobParameters.getString` SpEL (`StepContext` exposes job params as an **unwrapped** `Map`, so `getString` is invalid there).
+- **Outcome**: `./mvnw clean verify` green; `classpath:` imports should work for **dev** (Rabbit → async launcher) as well as direct launch.
+
+---
+
 ### Phase dependency graph
 
 ```
@@ -614,3 +634,29 @@ Phase 1 (Async API)
     └──▶ Phase 5 (Housekeeping) ← can run in parallel at any point
 ```
 
+---
+
+### 34) External CSV path failure through RabbitMQ
+
+- **Prompt summary**: Diagnose `FAILED` import status for job 400 with `FlatFileItemReader` / `Input resource must...` when testing a custom CSV through RabbitMQ.
+- **Root cause**: RabbitMQ carries only `{correlationId,inputFile,schemaVersion}`. It does not carry CSV bytes. Job 400 used `inputFile=file:/path/to/your/customers-mixed-1k-90-bad..csv`, a placeholder path that did not exist for the app process, so the reader failed before reading any rows.
+- **Changes done**:
+  - Added `CustomerImportInputFileValidator` application port and `InvalidInputFileResourceException`.
+  - Added `SpringResourceCustomerImportInputFileValidator` + shared `CustomerImportResourceResolver` in infrastructure.
+  - `BatchJobController` now rejects missing/unreadable resources with **400** before publishing to RabbitMQ.
+  - `SpringBatchCustomerImportUseCase` also validates before launching, protecting listener/direct/programmatic calls.
+  - Updated README, RUNBOOK, architecture/design docs, Postman docs, and Slidev flow.
+- **Verification**: Local dev E2E on isolated port/queue: `classpath:customers.csv` completed; real external `file:/tmp/codex-customers.csv` completed; placeholder `file:/path/to/your/...` reproduced the failure before the fix and now should return **400** without queueing.
+
+---
+
+### 35) Local classpath staging for custom CSV imports
+
+- **Prompt summary**: For local-only development, accept custom CSV files outside `src/main/resources`, store them where the Batch reader can resolve them, then send the resulting location through RabbitMQ.
+- **Changes done**:
+  - Added `CustomerImportInputFileStagingPort` and `LocalClasspathCustomerImportInputFileStagingAdapter`.
+  - External local `file:` or plain path inputs are copied to `target/classes/customer-imports/` and converted to `classpath:customer-imports/<correlationId>-<file>.csv`.
+  - `AmqpCustomerImportCommandPublisher` publishes the staged command; `DirectCustomerImportCommandPublisher` and `SpringBatchCustomerImportUseCase` stage as fallback for non-Rabbit/programmatic paths.
+  - `SpringResourceCustomerImportInputFileValidator` now accepts plain local paths as well as `file:` and `classpath:`.
+  - Updated README, RUNBOOK, SD docs, Postman collection text, and Slidev flow.
+- **Verification**: `./mvnw -q -DskipTests compile`; `./mvnw -q clean test`.

@@ -2,6 +2,7 @@ package com.example.spring_batch_demo.infrastructure.batch.config;
 
 import com.example.spring_batch_demo.application.customer.CustomerImportInputFile;
 import com.example.spring_batch_demo.domain.customer.Customer;
+import com.example.spring_batch_demo.infrastructure.adapter.resource.CustomerImportResourceResolver;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
@@ -24,6 +25,11 @@ public class CustomerCsvItemReaderConfig {
      * <p>The {@code inputFile} value is treated as a Spring {@link org.springframework.core.io.Resource}
      * location string (e.g. {@code classpath:customers.csv} or {@code file:/...}). It must be set by
      * {@code launchImport} (non-blank).</p>
+     *
+     * <p>Resource resolution is shared with the API validator. For {@code classpath:…} locations,
+     * it uses the application class loader so imports launched from a Rabbit listener (then
+     * {@link org.springframework.batch.core.launch.support.TaskExecutorJobLauncher}) still resolve on
+     * a {@code batch-*} worker thread.</p>
      */
     @Bean
     @StepScope
@@ -33,7 +39,7 @@ public class CustomerCsvItemReaderConfig {
     ) {
         String location = CustomerImportInputFile.requireJobParameterInputFile(inputFile);
 
-        Resource resource = resourceLoader.getResource(location);
+        Resource resource = CustomerImportResourceResolver.resolve(resourceLoader, location);
 
         FieldSetMapper<Customer> mapper = fieldSet -> new Customer(
                 fieldSet.readLong("id"),

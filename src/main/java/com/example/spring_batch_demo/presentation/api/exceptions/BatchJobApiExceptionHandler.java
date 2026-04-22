@@ -1,6 +1,11 @@
 package com.example.spring_batch_demo.presentation.api.exceptions;
 
+import java.net.URI;
+
+import com.example.spring_batch_demo.application.customer.exceptions.ImportCommandPublishException;
 import com.example.spring_batch_demo.application.customer.exceptions.ImportJobLaunchException;
+import com.example.spring_batch_demo.application.customer.exceptions.InvalidCorrelationIdException;
+import com.example.spring_batch_demo.application.customer.exceptions.InvalidInputFileResourceException;
 import com.example.spring_batch_demo.application.customer.exceptions.MissingInputFileException;
 import com.example.spring_batch_demo.presentation.api.BatchJobController;
 import org.springframework.http.HttpStatus;
@@ -8,8 +13,6 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
-
-import java.net.URI;
 
 /**
  * HTTP mapping for errors raised by {@link BatchJobController} — keeps the controller thin.
@@ -32,6 +35,17 @@ public class BatchJobApiExceptionHandler {
         return detail;
     }
 
+    @ExceptionHandler(InvalidInputFileResourceException.class)
+    public ProblemDetail onInvalidInputFileResource(InvalidInputFileResourceException ex) {
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST,
+                ex.getMessage() != null ? ex.getMessage() : "inputFile resource does not exist or is not readable"
+        );
+        detail.setTitle("Invalid input file");
+        detail.setType(URI.create("about:blank"));
+        return detail;
+    }
+
     @ExceptionHandler(ImportJobLaunchException.class)
     public ProblemDetail onImportLaunchFailed(ImportJobLaunchException ex) {
         ProblemDetail detail = ProblemDetail.forStatusAndDetail(
@@ -39,6 +53,28 @@ public class BatchJobApiExceptionHandler {
                 ex.getMessage() != null ? ex.getMessage() : "Import job failed to start"
         );
         detail.setTitle("Import job launch failed");
+        detail.setType(URI.create("about:blank"));
+        return detail;
+    }
+
+    @ExceptionHandler(ImportCommandPublishException.class)
+    public ProblemDetail onImportCommandPublishFailed(ImportCommandPublishException ex) {
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                ex.getMessage() != null ? ex.getMessage() : "Import command could not be queued"
+        );
+        detail.setTitle("Import command publish failed");
+        detail.setType(URI.create("about:blank"));
+        return detail;
+    }
+
+    @ExceptionHandler(InvalidCorrelationIdException.class)
+    public ProblemDetail onInvalidCorrelationId(InvalidCorrelationIdException ex) {
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST,
+                ex.getMessage() != null ? ex.getMessage() : "Invalid correlation id"
+        );
+        detail.setTitle("Invalid correlation id");
         detail.setType(URI.create("about:blank"));
         return detail;
     }
