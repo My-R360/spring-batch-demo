@@ -1,11 +1,21 @@
 package com.example.spring_batch_demo.presentation.api;
 
 import java.util.Map;
+import java.util.OptionalLong;
+import java.util.UUID;
 
-import com.example.spring_batch_demo.application.customer.exceptions.ImportJobLaunchException;
+import com.example.spring_batch_demo.application.customer.CustomerImportInputFile;
+import com.example.spring_batch_demo.application.customer.dto.CustomerImportCommand;
+import com.example.spring_batch_demo.application.customer.dto.CustomerImportEnqueueResponse;
 import com.example.spring_batch_demo.application.customer.dto.CustomerImportResult;
 import com.example.spring_batch_demo.application.customer.dto.ImportAuditReport;
+import com.example.spring_batch_demo.application.customer.exceptions.ImportCommandPublishException;
+import com.example.spring_batch_demo.application.customer.exceptions.ImportJobLaunchException;
+import com.example.spring_batch_demo.application.customer.exceptions.InvalidCorrelationIdException;
+import com.example.spring_batch_demo.application.customer.port.CustomerImportCommandPublisher;
+import com.example.spring_batch_demo.application.customer.port.CustomerImportInputFileValidator;
 import com.example.spring_batch_demo.application.customer.port.CustomerImportUseCase;
+import com.example.spring_batch_demo.application.customer.port.ImportLaunchCorrelationPort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -23,28 +33,57 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class BatchJobController {
 
+    private final CustomerImportCommandPublisher customerImportCommandPublisher;
+    private final CustomerImportInputFileValidator inputFileValidator;
     private final CustomerImportUseCase importUseCase;
+    private final ImportLaunchCorrelationPort importLaunchCorrelationPort;
 
     /**
-     * Launches the customer import job asynchronously.
+     * Accepts a customer import: publishes a command to RabbitMQ when messaging is enabled, or
+     * launches the batch job in-process when messaging is disabled.
      *
-     * <p>Returns 202 Accepted immediately with the {@code jobExecutionId}.
-     * Callers can poll {@code GET .../status} to track progress.</p>
+     * <p>Returns 202 Accepted with {@code correlationId} and {@code status} ({@code QUEUED} or
+     * {@code STARTED}). When {@code jobExecutionId} is non-null, poll {@code GET .../status} using it.
+     * When status is {@code QUEUED}, poll {@code GET .../by-correlation/.../job} until {@code jobExecutionId}
+     * appears.</p>
      *
      * <p>{@code inputFile} is required (non-blank): a Spring {@link org.springframework.core.io.Resource}
      * location string. Missing or blank values yield 400.</p>
      */
     @PostMapping("/customer/import")
-    public ResponseEntity<Map<String, Object>> importCustomers(
+    public ResponseEntity<CustomerImportEnqueueResponse> importCustomers(
             @RequestParam(name = "inputFile", required = false) String inputFile
-    ) throws ImportJobLaunchException {
+    ) throws ImportJobLaunchException, ImportCommandPublishException {
         log.info("Import API called. inputFile={}", inputFile);
 
-        Long jobExecutionId = importUseCase.launchImport(inputFile);
-        log.info("Import job launched. jobExecutionId={}", jobExecutionId);
+        String resolvedInput = CustomerImportInputFile.requireInputFileLocation(inputFile);
+        inputFileValidator.validateAvailable(resolvedInput);
+        String correlationId = UUID.randomUUID().toString();
+        CustomerImportCommand command = CustomerImportCommand.of(correlationId, resolvedInput);
+        CustomerImportEnqueueResponse body = customerImportCommandPublisher.publish(command);
+        log.info(
+                "Import command accepted. correlationId={} status={} jobExecutionId={}",
+                body.correlationId(),
+                body.status(),
+                body.jobExecutionId()
+        );
 
-        return ResponseEntity.status(HttpStatus.ACCEPTED)
-                .body(Map.of("jobExecutionId", jobExecutionId));
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(body);
+    }
+
+    /**
+     * Resolves {@code jobExecutionId} for a {@code correlationId} returned from POST import (RabbitMQ path).
+     */
+    @GetMapping("/customer/import/by-correlation/{correlationId}/job")
+    public ResponseEntity<Map<String, Long>> getJobExecutionIdByCorrelation(
+            @PathVariable String correlationId
+    ) {
+        requireUuidCorrelationId(correlationId);
+        OptionalLong jobExecutionId = importLaunchCorrelationPort.findJobExecutionId(correlationId.trim());
+        if (jobExecutionId.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(Map.of("jobExecutionId", jobExecutionId.getAsLong()));
     }
 
     /**
@@ -95,5 +134,16 @@ public class BatchJobController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(report);
         }
         return ResponseEntity.ok(report);
+    }
+
+    private static void requireUuidCorrelationId(String correlationId) {
+        if (correlationId == null || correlationId.isBlank()) {
+            throw new InvalidCorrelationIdException("correlationId must be a non-blank UUID");
+        }
+        try {
+            UUID.fromString(correlationId.trim());
+        } catch (IllegalArgumentException ex) {
+            throw new InvalidCorrelationIdException("correlationId must be a valid UUID");
+        }
     }
 }

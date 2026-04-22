@@ -87,13 +87,13 @@ Phase 1 (async API + batch fault tolerance) ✅
 
 | Item | Status | Notes |
 |------|--------|--------|
-| **Flow A (REST → publish):** controller publishes command, returns 202; listener calls `launchImport` | ⬜ | Primary implementation path |
+| **Flow A (REST → publish):** controller publishes command, returns 202; listener calls `launchImport` | ✅ | `BatchJobController`, `AmqpCustomerImportCommandPublisher`, `CustomerImportJobLaunchListener` |
 | **Flow B (bank / upstream events):** deferred until requirements are concrete | ⬜ | Design-only for now |
-| Docker RabbitMQ (`rabbitmq:3-management`), `spring-boot-starter-amqp` | ⬜ | |
-| `CustomerImportCommand` (or equivalent) in application layer | ⬜ | |
-| Exchange/queue/DLQ, JSON converter, manual ack, prefetch=1 | ⬜ | |
-| Message-level retry + backoff + jitter; max attempts → DLQ | ⬜ | Stacks *outside* Phase 1 chunk retry |
-| RUNBOOK (ops: UI, DLQ inspect/replay) | ⬜ | |
+| Docker RabbitMQ (`rabbitmq:3-management`), `spring-boot-starter-amqp` | ✅ | `docker-compose.rabbitmq.yml`; `pom.xml` |
+| `CustomerImportCommand` (or equivalent) in application layer | ✅ | `application.customer.dto.CustomerImportCommand` |
+| Exchange/queue/DLQ, JSON converter, prefetch=1, listener retry → DLQ | ✅ | `CustomerImportRabbitConfig`; listener ack **AUTO** (see RUNBOOK §7.7) |
+| Message-level retry + exponential backoff; max attempts → DLQ | ✅ | `RetryInterceptorBuilder` + `RejectAndDontRequeueRecoverer` (jitter optional follow-up) |
+| RUNBOOK (ops: UI, DLQ inspect/replay) | ✅ | §4.0, §7.6–7.9 |
 
 ---
 
@@ -139,4 +139,4 @@ These are **not** all committed phases; they are high-value directions to consid
 - After completing a phase, flip ⬜ → ✅ and add a pointer to the `PROMPTS.md` log entry.
 - Prefer small, shippable slices within each phase so `main` stays deployable.
 
-Last reviewed: **2026-04-19** (Phase 2 audit/reporting implemented; see `PROMPTS.md` §32).
+Last reviewed: **2026-04-20** (Phase 3 RabbitMQ + correlation resolution; see `RUNBOOK.md` §4.0 / §7.6+).

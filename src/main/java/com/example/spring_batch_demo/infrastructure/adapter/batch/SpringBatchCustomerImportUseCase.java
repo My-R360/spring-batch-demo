@@ -5,11 +5,14 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import com.example.spring_batch_demo.application.customer.CustomerImportInputFile;
-import com.example.spring_batch_demo.application.customer.exceptions.ImportJobLaunchException;
 import com.example.spring_batch_demo.application.customer.dto.CustomerImportResult;
 import com.example.spring_batch_demo.application.customer.dto.ImportAuditReport;
+import com.example.spring_batch_demo.application.customer.exceptions.ImportJobLaunchException;
+import com.example.spring_batch_demo.application.customer.port.CustomerImportInputFileStagingPort;
+import com.example.spring_batch_demo.application.customer.port.CustomerImportInputFileValidator;
 import com.example.spring_batch_demo.application.customer.port.CustomerImportUseCase;
 import com.example.spring_batch_demo.application.customer.port.ImportAuditPort;
 import com.example.spring_batch_demo.domain.importaudit.RejectedRow;
@@ -37,27 +40,35 @@ public class SpringBatchCustomerImportUseCase implements CustomerImportUseCase {
     private final JobExplorer jobExplorer;
     private final Job customerJob;
     private final ImportAuditPort importAuditPort;
+    private final CustomerImportInputFileValidator inputFileValidator;
+    private final CustomerImportInputFileStagingPort inputFileStagingPort;
 
     public SpringBatchCustomerImportUseCase(
             @Qualifier("asyncJobLauncher") JobLauncher jobLauncher,
             JobExplorer jobExplorer,
             @Qualifier("customerJob") Job customerJob,
-            ImportAuditPort importAuditPort
+            ImportAuditPort importAuditPort,
+            CustomerImportInputFileValidator inputFileValidator,
+            CustomerImportInputFileStagingPort inputFileStagingPort
     ) {
         this.jobLauncher = jobLauncher;
         this.jobExplorer = jobExplorer;
         this.customerJob = customerJob;
         this.importAuditPort = importAuditPort;
+        this.inputFileValidator = inputFileValidator;
+        this.inputFileStagingPort = inputFileStagingPort;
     }
 
     @Override
     public Long launchImport(String inputFile) throws ImportJobLaunchException {
         String resolvedInput = CustomerImportInputFile.requireInputFileLocation(inputFile);
+        String stagedInput = inputFileStagingPort.stageForImport(resolvedInput, UUID.randomUUID().toString());
+        inputFileValidator.validateAvailable(stagedInput);
 
-        log.info("Launching Spring Batch job={} inputFile={}", customerJob.getName(), resolvedInput);
+        log.info("Launching Spring Batch job={} inputFile={}", customerJob.getName(), stagedInput);
 
         JobParameters params = new JobParametersBuilder()
-                .addString("inputFile", resolvedInput)
+                .addString("inputFile", stagedInput)
                 .addLong("run.at", Instant.now().toEpochMilli())
                 .toJobParameters();
 
