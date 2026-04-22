@@ -26,6 +26,15 @@ class LocalClasspathCustomerImportInputFileStagingAdapterTest {
     }
 
     @Test
+    void leavesNonLocalResourceUnchangedForSharedStorage() {
+        LocalClasspathCustomerImportInputFileStagingAdapter stager = newStager();
+
+        String staged = stager.stageForImport("s3://customer-imports/customers.csv", "import-1");
+
+        assertEquals("s3://customer-imports/customers.csv", staged);
+    }
+
+    @Test
     void copiesFileResourceToRuntimeClasspath(@TempDir Path tempDir) throws Exception {
         Path source = tempDir.resolve("Custom Customers 01.csv");
         Files.writeString(source, "1,Alice,alice@example.com\n");

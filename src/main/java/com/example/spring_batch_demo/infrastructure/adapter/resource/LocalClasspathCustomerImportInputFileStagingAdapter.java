@@ -1,7 +1,6 @@
 package com.example.spring_batch_demo.infrastructure.adapter.resource;
 
 import java.io.IOException;
-import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -17,17 +16,21 @@ import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Component;
 
+/**
+ * Local development staging adapter.
+ *
+ * <p>This copies local {@code file:} and plain-path CSV inputs into the runtime classpath so a
+ * same-machine RabbitMQ consumer can read them after asynchronous hand-off. A distributed deployment
+ * should replace this port with an adapter that writes to shared storage, such as S3 or another
+ * location visible to every consumer.</p>
+ */
 @Component
 @Slf4j
 public class LocalClasspathCustomerImportInputFileStagingAdapter implements CustomerImportInputFileStagingPort {
 
-    private static final String CLASSPATH_PREFIX = "classpath:";
-    private static final String CLASSPATH_ALL_PREFIX = "classpath*:";
-    private static final String FILE_PREFIX = "file:";
     private static final String DEFAULT_CLASSPATH_LOCATION_PREFIX = "customer-imports";
     private static final Path DEFAULT_CLASSPATH_DIRECTORY = Path.of("target/classes/customer-imports");
     private static final int MAX_FILE_NAME_LENGTH = 180;
-    private static final Pattern RESOURCE_PREFIX = Pattern.compile("^[a-zA-Z][a-zA-Z0-9+.-]*:");
     private static final Pattern UNSAFE_FILE_NAME_CHARACTERS = Pattern.compile("[^A-Za-z0-9._-]");
     private static final Pattern REPEATED_UNDERSCORES = Pattern.compile("_+");
 
@@ -45,17 +48,17 @@ public class LocalClasspathCustomerImportInputFileStagingAdapter implements Cust
     @Override
     public String stageForImport(String inputFile, String importId) {
         String location = CustomerImportInputFile.requireInputFileLocation(inputFile);
-        if (isClasspathLocation(location)) {
+        if (CustomerImportResourceLocations.isClasspathLocation(location)) {
             return location;
         }
 
-        Path source = resolveLocalSourcePath(location);
+        Path source = CustomerImportResourceLocations.resolveLocalSourcePath(location);
         if (source == null) {
             return location;
         }
 
         Path sourceFile = source.toAbsolutePath().normalize();
-        validateSourceFile(sourceFile, location);
+        CustomerImportResourceLocations.validateReadableRegularFile(sourceFile, location);
 
         Path stagingDirectory = resolveClasspathDirectory();
         String stagedFileName = buildStagedFileName(importId, sourceFile.getFileName());
@@ -72,48 +75,11 @@ public class LocalClasspathCustomerImportInputFileStagingAdapter implements Cust
                     "Unable to stage input file locally for import: " + location, ex);
         }
 
-        String stagedLocation = CLASSPATH_PREFIX + normalizeClasspathLocationPrefix() + "/" + stagedFileName;
+        String stagedLocation = CustomerImportResourceLocations.CLASSPATH_PREFIX
+                + normalizeClasspathLocationPrefix() + "/" + stagedFileName;
         validateStagedClasspathResource(stagedLocation);
         log.info("Staged customer import file source={} stagedLocation={}", sourceFile, stagedLocation);
         return stagedLocation;
-    }
-
-    private static boolean isClasspathLocation(String location) {
-        return location.startsWith(CLASSPATH_PREFIX) || location.startsWith(CLASSPATH_ALL_PREFIX);
-    }
-
-    private static Path resolveLocalSourcePath(String location) {
-        if (location.startsWith(FILE_PREFIX)) {
-            return resolveFileUriPath(location);
-        }
-        if (RESOURCE_PREFIX.matcher(location).find()) {
-            return null;
-        }
-        return Path.of(location);
-    }
-
-    private static Path resolveFileUriPath(String location) {
-        try {
-            return Path.of(URI.create(location));
-        } catch (IllegalArgumentException ex) {
-            String rawPath = location.substring(FILE_PREFIX.length()).trim();
-            if (rawPath.isEmpty()) {
-                throw new InvalidInputFileResourceException("Input file resource does not contain a file path: " + location);
-            }
-            return Path.of(rawPath);
-        }
-    }
-
-    private static void validateSourceFile(Path sourceFile, String originalLocation) {
-        if (!Files.exists(sourceFile)) {
-            throw new InvalidInputFileResourceException("Input file resource does not exist: " + originalLocation);
-        }
-        if (!Files.isRegularFile(sourceFile)) {
-            throw new InvalidInputFileResourceException("Input file resource is not a regular file: " + originalLocation);
-        }
-        if (!Files.isReadable(sourceFile)) {
-            throw new InvalidInputFileResourceException("Input file resource is not readable: " + originalLocation);
-        }
     }
 
     private Path resolveClasspathDirectory() {
