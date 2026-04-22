@@ -1,0 +1,6 @@
+id,name,email
+1,Alice,alice@example.com
+2,Bob,bademail
+3,Carol,carol@example.com
+4,Dan,dan@example.com
+garbage

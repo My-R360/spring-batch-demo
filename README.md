@@ -67,7 +67,7 @@ Use the `jobExecutionId` from the POST response:
 
 ```bash
 curl "http://localhost:8080/api/batch/customer/import/1/status"
-# → 200  {"jobExecutionId":1,"status":"COMPLETED","failures":[],"readCount":6,"writeCount":5,"skipCount":0}
+# → 200  {"jobExecutionId":1,"status":"COMPLETED","failures":[],"readCount":6,"writeCount":5,"skipCount":0,"filterCount":0,"rejectedSample":[]}
 ```
 
 While the job is running, `status` will be `STARTED`. When done, it will be `COMPLETED` or `FAILED`.
@@ -80,21 +80,23 @@ While the job is running, `status` will be `STARTED`. When done, it will be `COM
 - **Application (ports + DTOs)**:
   - `.../application/customer/port/CustomerImportUseCase.java`
   - `.../application/customer/port/CustomerUpsertPort.java`
-  - `.../application/customer/dto/CustomerImportResult.java` (job / polling record, not domain)
+  - `.../application/customer/port/ImportAuditPort.java`
+  - `.../application/customer/dto/CustomerImportResult.java`, `ImportAuditReport.java` (job / polling + audit, not domain)
   - `.../application/customer/CustomerImportInputFile.java` (required `inputFile` path rules); `.../application/customer/exceptions/` (`ImportJobLaunchException`, `MissingInputFileException`)
 - **Domain (model + policy)**:
   - `.../domain/customer/Customer.java`
+  - `.../domain/importaudit/` (`RejectedRow`, `ImportRejectionCategory`)
   - `.../domain/customer/policy/CustomerImportPolicy.java`, `.../domain/customer/policy/EmailAndNameCustomerImportPolicy.java`
   - `.../domain/validation/package-info.java` (placeholder for cross-cutting validation)
 - **Common (JDK-only helpers)**:
   - `.../common/package-info.java`
 - **Infrastructure**:
-  - **Batch wiring (`@Configuration`)**: `.../infrastructure/batch/config/CustomerImportJobConfig.java` (job + fault-tolerant step), `.../infrastructure/batch/config/CustomerCsvItemReaderConfig.java` (`@StepScope` CSV reader)
-  - **Adapters (implementations)**: `.../infrastructure/adapter/batch/` — use-case impl, processor/writer adapters, `JobCompletionListener`; `.../infrastructure/adapter/persistence/OracleCustomerUpsertPortAdapter.java` (Oracle MERGE)
+  - **Batch wiring (`@Configuration`)**: `.../infrastructure/batch/config/CustomerImportJobConfig.java` (job + fault-tolerant step), `CustomerCsvItemReaderConfig.java`, `CustomerImportAuditListenerConfig.java`
+  - **Adapters (implementations)**: `.../infrastructure/adapter/batch/` — use-case impl, processor/writer adapters, `JobCompletionListener`, `CustomerImportAuditStepListener`; `.../infrastructure/adapter/persistence/OracleCustomerUpsertPortAdapter.java` (Oracle MERGE), `JdbcImportAuditPortAdapter.java`
   - **Other config**: `.../infrastructure/config/AsyncJobLauncherConfig.java`, `JdbcConfig`, `DomainPolicyConfig`
   - **Dev DB diagnostics**: `.../infrastructure/diagnostics/DevStartupDiagnostics.java`
 - **Schema init**: `src/main/resources/schema.sql`
-- **Sample CSVs**: `src/main/resources/customers.csv`, `src/main/resources/customers-01.csv`
+- **Sample CSVs**: `customers.csv`, `customers-01.csv` … `customers-04.csv`, `customers-phase2-audit-sample.csv`, `customers-import-audit-sample.csv` (integration / audit demos) under `src/main/resources/`
 
 ## Tests
 
@@ -111,6 +113,8 @@ Run everything:
 ./mvnw clean test
 ```
 
+H2 + audit smoke without Oracle Docker: `./mvnw spring-boot:run -Dspring-boot.run.profiles=audit-it` (see `RUNBOOK.md` §4.3).
+
 Key test-infrastructure files:
 
 - `src/main/resources/application-test.properties` — H2 in-memory datasource (Oracle-compat mode) when profile `test` is active; auto-init off
@@ -122,7 +126,7 @@ Key test-infrastructure files:
 
 HTTP POST → 202 Accepted (async) → Presentation Controller → Application UseCase → Infrastructure (Async JobLauncher) → Job → Fault-Tolerant Step (retry + skip) → Reader → Processor → Writer → Oracle.
 
-Poll: GET status → Application UseCase → JobExplorer → progress counts + status.
+Poll: GET status → Application UseCase → JobExplorer → progress counts + `filterCount` + `rejectedSample`; GET report → paginated `IMPORT_REJECTED_ROW` audit.
 
 ## Architecture & design docs
 

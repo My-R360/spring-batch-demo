@@ -51,6 +51,7 @@ SELECT username FROM dba_users WHERE username = 'BATCH_USER';
   - default profile (production-safe): does **not** auto-create tables
 - `src/main/resources/application-dev.properties`
   - dev profile: initializes schema and enables extra logs
+  - Oracle `schema.sql` uses PL/SQL blocks; `spring.sql.init.separator=^^^ END ORACLE DDL ^^^` so Spring does not split on `;` inside `BEGIN…END` or strip a delimiter line that starts with `--` (treated as a comment). Without that, only `CUSTOMER` might be created.
 
 Oracle connection used by the app:
 
@@ -78,6 +79,24 @@ On startup in `dev` you should see:
 
 In this mode you must create tables yourself (or via migrations).
 
+### 4.3 In-memory H2 smoke (`audit-it` profile)
+
+Runs the app with **embedded** Spring Batch metadata + `CUSTOMER` + `IMPORT_REJECTED_ROW` on **H2** (no Docker Oracle). Imports use a **no-op** `CustomerUpsertPort` so you can exercise REST + batch + audit without Oracle `MERGE` syntax.
+
+```bash
+./mvnw spring-boot:run -Dspring-boot.run.profiles=audit-it
+```
+
+Quick API check (after Tomcat is up) using the bundled **Phase 2** sample (policy filter + parse skips):
+
+```bash
+curl -s -X POST "http://localhost:8080/api/batch/customer/import?inputFile=classpath:customers-phase2-audit-sample.csv"
+# → 202  {"jobExecutionId":…}
+
+curl -s "http://localhost:8080/api/batch/customer/import/1/status" | jq .
+curl -s "http://localhost:8080/api/batch/customer/import/1/report?limit=20&offset=0" | jq .
+```
+
 ## 5) Use Postman (import API)
 
 The import API is **asynchronous** — POST returns **202 Accepted** immediately with a `jobExecutionId`. Poll the status endpoint to track progress.
@@ -87,7 +106,8 @@ The import API is **asynchronous** — POST returns **202 Accepted** immediately
 | Method | URL | Description |
 |--------|-----|-------------|
 | `POST` | `/api/batch/customer/import?inputFile=…` | Launch import (returns 202 + jobExecutionId); **400** if `inputFile` missing/blank |
-| `GET` | `/api/batch/customer/import/{jobExecutionId}/status` | Poll job status/progress |
+| `GET` | `/api/batch/customer/import/{jobExecutionId}/status` | Poll job status/progress (includes `filterCount`, `rejectedSample`) |
+| `GET` | `/api/batch/customer/import/{jobExecutionId}/report?limit=&offset=` | Paginated per-row audit from `IMPORT_REJECTED_ROW` (`PARSE_SKIP`, `READ_SKIPPED`, `PROCESS_SKIPPED`, `WRITE_SKIPPED`, `POLICY_FILTER`) |
 
 ### 5.2 Import a CSV bundled in the jar (`inputFile` required)
 
@@ -96,13 +116,18 @@ curl -X POST "http://localhost:8080/api/batch/customer/import?inputFile=classpat
 # → 202  {"jobExecutionId": 1}
 ```
 
-Omitting `inputFile` or sending a blank value returns **400** (`ProblemDetail`, title `Missing input file`). Per-row parse skips and filtered rows are visible only via status counters for now; **Phase 2** (roadmap) adds reporting/audit for skipped and rejected lines.
+Omitting `inputFile` or sending a blank value returns **400** (`ProblemDetail`, title `Missing input file`). Read skips (`skipCount`), policy-filtered rows (`filterCount`), and optional process/write skips are reflected in status counters; persisted reasons and raw fields appear in `rejectedSample` (first rows) and in the **report** endpoint. **Audit inserts are not swallowed:** if `IMPORT_REJECTED_ROW` insert fails, the step fails (check DDL vs `schema.sql` and `INSERT` privilege).
+
+**Counters vs `CUSTOMER`:** `readCount` counts successful reader items; `writeCount` is rows upserted; `skipCount` is Spring Batch read (and, when configured, process/write) skips; `filterCount` is processor returned `null` (policy filter). Rows that never become a `Customer` instance (read failure) only appear in audit when the exception is **skippable** and the skip listener runs—extend `.skip(...)` on `customerStep` if you need more exception types audited.
 
 ### 5.3 Poll job status
 
 ```bash
 curl "http://localhost:8080/api/batch/customer/import/1/status"
-# → 200  {"jobExecutionId":1,"status":"COMPLETED","failures":[],"readCount":6,"writeCount":5,"skipCount":0}
+# → 200  {"jobExecutionId":1,"status":"COMPLETED","failures":[],"readCount":6,"writeCount":5,"skipCount":0,"filterCount":0,"rejectedSample":[]}
+
+curl "http://localhost:8080/api/batch/customer/import/1/report?limit=50&offset=0"
+# → 200  {"jobExecutionId":1,"jobStatus":"COMPLETED","totalRejectedRows":0,"rows":[]}
 ```
 
 Status values: `STARTING` → `STARTED` → `COMPLETED` or `FAILED`. Returns 404 for unknown IDs.
@@ -139,7 +164,7 @@ sqlplus batch_user/batch_pass@//localhost:1521/XEPDB1
 ### 6.2 Check tables
 
 ```sql
-SELECT table_name FROM user_tables WHERE table_name IN ('CUSTOMER', 'BATCH_JOB_EXECUTION');
+SELECT table_name FROM user_tables WHERE table_name IN ('CUSTOMER', 'IMPORT_REJECTED_ROW', 'BATCH_JOB_EXECUTION');
 ```
 
 ### 6.3 Check imported rows
@@ -186,23 +211,24 @@ ORDER BY JOB_EXECUTION_ID DESC;
 1. Client calls `GET /api/batch/customer/import/{id}/status`
 2. Controller calls `CustomerImportUseCase.getImportStatus(id)`
 3. Infrastructure uses `JobExplorer` to look up the `JobExecution` and its `StepExecution` counts
-4. Returns `{status, readCount, writeCount, skipCount, failures}`
+4. Returns `{status, readCount, writeCount, skipCount, filterCount, rejectedSample, failures}` and can call `getImportAuditReport` for paginated rows from `IMPORT_REJECTED_ROW`
 
 ### 7.4 Key code locations
 
 - Presentation (API): `.../presentation/api/BatchJobController.java`
 - Presentation (errors): `.../presentation/api/exceptions/BatchJobApiExceptionHandler.java`
-- Application ports + DTO: `.../application/customer/port/CustomerImportUseCase.java`, `CustomerUpsertPort.java`; `.../application/customer/dto/CustomerImportResult.java`
+- Application ports + DTO: `.../application/customer/port/CustomerImportUseCase.java`, `CustomerUpsertPort.java`, `ImportAuditPort.java`; `.../application/customer/dto/CustomerImportResult.java`, `ImportAuditReport.java`
 - Application import input / errors: `.../application/customer/CustomerImportInputFile.java`; `.../application/customer/exceptions/` (`MissingInputFileException`, `ImportJobLaunchException`)
 - Domain policy: `.../domain/customer/policy/`
-- Job/Step + reader **configuration**: `.../infrastructure/batch/config/CustomerImportJobConfig.java`, `CustomerCsvItemReaderConfig.java`
-- Batch **adapters** + listener: `.../infrastructure/adapter/batch/`
+- Job/Step + reader **configuration**: `.../infrastructure/batch/config/CustomerImportJobConfig.java`, `CustomerCsvItemReaderConfig.java`, `CustomerImportAuditListenerConfig.java`
+- Batch **adapters** + listeners: `.../infrastructure/adapter/batch/` (includes `CustomerImportAuditStepListener` for skip/process audit)
 - Oracle MERGE adapter: `.../infrastructure/adapter/persistence/OracleCustomerUpsertPortAdapter.java`
+- Import audit JDBC: `.../infrastructure/adapter/persistence/JdbcImportAuditPortAdapter.java`
 - Async launcher + JDBC + domain policy wiring: `.../infrastructure/config/`
 
 ### 7.5 Why two classes named `*Config` under batch?
 
-- **`CustomerImportJobConfig`**: builds the **`Job`** and fault-tolerant **`Step`** (chunk, retry/skip, listener registration).
+- **`CustomerImportJobConfig`**: builds the **`Job`** and fault-tolerant **`Step`** (chunk, retry/skip, job + skip/process audit listener registration).
 - **`CustomerCsvItemReaderConfig`**: builds the **`@StepScope` `FlatFileItemReader`** so each run can resolve a different `inputFile` job parameter. Kept separate from the job graph for clarity and Spring Batch bean scopes.
 
 ## 8) Tests
@@ -226,6 +252,8 @@ src/test/java/
 └── integration/   ← Spring-backed (@SpringBootTest, @WebMvcTest)
     └── com/example/spring_batch_demo/
         ├── SpringBatchDemoApplicationTests.java
+        ├── batch/
+        │   └── CustomerImportBatchAuditIntegrationTest.java   (@ActiveProfiles("audit-it") + H2)
         └── presentation/api/
             ├── BatchJobControllerWebMvcIntegrationTest.java
             └── BatchJobImportInputFileApiIntegrationTest.java
