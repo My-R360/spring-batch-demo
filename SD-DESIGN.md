@@ -80,6 +80,17 @@ This document explains key design choices and where they appear in the current o
 - `getImportStatus` builds `failures` from persisted **exit descriptions** on the job and on any `FAILED` steps (`JobExecution#getAllFailureExceptions()` is not reloaded from the database when using `JobExplorer`). It also aggregates `filterCount` and loads a small `rejectedSample` from `ImportAuditPort`.
 - `GET .../report` returns `ImportAuditReport` (job status, total rejected count, paginated `RejectedRow` list) with the same **404** / **500-on-FAILED** HTTP mapping as status polling.
 
+### Messaging boundary (Phase 3)
+
+- **`CustomerImportCommand`** (`application.customer.dto`) is the JSON-serializable command: `correlationId` (UUID), `inputFile`, `schemaVersion`.
+- **`CustomerImportCommandPublisher`** (`application.customer.port`) is implemented either by **`AmqpCustomerImportCommandPublisher`** (profile `dev`: publish to RabbitMQ, return `QUEUED` + null `jobExecutionId`) or **`DirectCustomerImportCommandPublisher`** (messaging **off**: call `launchImport` on the HTTP thread, return `STARTED` + `jobExecutionId`).
+- **`CustomerImportInputFileValidator`** (`application.customer.port`) keeps resource availability as a port contract; `SpringResourceCustomerImportInputFileValidator` verifies that `classpath:` / `file:` / plain local path inputs exist and are readable before a command is queued.
+- **`CustomerImportInputFileStagingPort`** (`application.customer.port`) prepares local filesystem inputs for command hand-off. `LocalClasspathCustomerImportInputFileStagingAdapter` copies them to `target/classes/customer-imports/` and returns `classpath:customer-imports/...`; `classpath:` inputs pass through unchanged.
+- **`ImportLaunchCorrelationPort`** + **`JdbcImportLaunchCorrelationAdapter`** persist `correlation_id` → `job_execution_id` in **`IMPORT_LAUNCH_CORRELATION`** after a successful launch (insert-if-absent for safe redelivery semantics).
+- **`CustomerImportRabbitConfig`** (`infrastructure.config.messaging`, active when `app.messaging.customer-import.enabled=true`) declares direct exchange, work queue with **DLX** to **`customer.import.dlq`**, `Jackson2JsonMessageConverter`, `RabbitTemplateCustomizer`, and a **`SimpleRabbitListenerContainerFactory`** with **prefetch=1**, stateless **retry** + **`RejectAndDontRequeueRecoverer`**, and `defaultRequeueRejected=false`.
+- **`CustomerImportJobLaunchListener`** (`@RabbitListener`, ack mode **AUTO**) invokes **`CustomerImportUseCase.launchImport`** with the staged location then registers correlation — same batch semantics as Phases 1–2; only the **trigger path** moved behind the broker in `dev`.
+- **HTTP errors:** **`ImportCommandPublishException`** maps to **503** (`ProblemDetail`); invalid UUID on `GET .../by-correlation/...` maps to **400** (`InvalidCorrelationIdException`); missing/unreadable input files map to **400** before RabbitMQ publish.
+
 ### Fault tolerance (Phase 1)
 
 - `customerStep` is configured as fault-tolerant:
@@ -119,4 +130,3 @@ Affected file (fixed): `infrastructure/adapter/batch/SpringBatchCustomerImportUs
 
 - On **Spring Boot 3.2.x**, context refresh may log **WARN** from `PostProcessorRegistrationDelegate` about beans “not eligible for getting processed by all BeanPostProcessors” (often involving `JobRegistryBeanPostProcessor`, `DataSource`, `PlatformTransactionManager`). This is a known ordering quirk between **Batch auto-configuration** and the JDBC stack; it is **usually harmless** if the app starts and batch jobs execute.
 - Prefer fixing only when startup **actually fails**; see `RUNBOOK.md` troubleshooting for this topic.
-

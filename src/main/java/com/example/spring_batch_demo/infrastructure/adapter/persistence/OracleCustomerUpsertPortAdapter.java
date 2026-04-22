@@ -13,7 +13,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Component;
 
 @Component
-@Profile("!audit-it")
+@Profile("!audit-it & !amqp-it")
 @Slf4j
 @RequiredArgsConstructor
 public class OracleCustomerUpsertPortAdapter implements CustomerUpsertPort {

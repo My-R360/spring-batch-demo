@@ -61,6 +61,17 @@ Oracle connection used by the app:
 
 ## 4) Run the application
 
+### 4.0 RabbitMQ (Phase 3, required for `dev` profile)
+
+The `dev` profile sets `app.messaging.customer-import.enabled=true`. `application-dev.yaml` sets `spring.autoconfigure.exclude` to an **empty list** so the base `application.properties` exclusion of `RabbitAutoConfiguration` is cleared and the app can connect to RabbitMQ on startup.
+
+```bash
+docker compose -f docker-compose.rabbitmq.yml up -d
+# Management UI: http://localhost:15672  (guest / guest)
+```
+
+Without a broker, the app will fail to start in `dev`. Profiles `test` and `audit-it` keep messaging **disabled** and exclude `RabbitAutoConfiguration` (no broker needed).
+
 ### 4.1 Dev mode (recommended while learning/testing)
 
 ```bash
@@ -91,7 +102,7 @@ Quick API check (after Tomcat is up) using the bundled **Phase 2** sample (polic
 
 ```bash
 curl -s -X POST "http://localhost:8080/api/batch/customer/import?inputFile=classpath:customers-phase2-audit-sample.csv"
-# → 202  {"jobExecutionId":…}
+# → 202  {"correlationId":"…","status":"STARTED","jobExecutionId":1}  (messaging off: job id returned immediately)
 
 curl -s "http://localhost:8080/api/batch/customer/import/1/status" | jq .
 curl -s "http://localhost:8080/api/batch/customer/import/1/report?limit=20&offset=0" | jq .
@@ -99,24 +110,31 @@ curl -s "http://localhost:8080/api/batch/customer/import/1/report?limit=20&offse
 
 ## 5) Use Postman (import API)
 
-The import API is **asynchronous** — POST returns **202 Accepted** immediately with a `jobExecutionId`. Poll the status endpoint to track progress.
+The import API is **asynchronous** — POST returns **202 Accepted** with a **`CustomerImportEnqueueResponse`** JSON body:
+
+- **`dev` (RabbitMQ on):** `{"correlationId":"<uuid>","status":"QUEUED","jobExecutionId":null}` — then poll `GET .../by-correlation/{correlationId}/job` until you receive `{"jobExecutionId":N}`, then poll status/report as before.
+- **`audit-it` / `test` (messaging off):** `{"correlationId":"<uuid>","status":"STARTED","jobExecutionId":N}` — you can poll status immediately with `N`.
+
+Bundled Postman collection (v2.1 JSON): [`docs/postman/customer-import-api.json`](docs/postman/customer-import-api.json) — import into Postman and set `baseUrl`, `correlationId`, `jobExecutionId` variables as you go.
 
 ### 5.1 Endpoints
 
 | Method | URL | Description |
 |--------|-----|-------------|
-| `POST` | `/api/batch/customer/import?inputFile=…` | Launch import (returns 202 + jobExecutionId); **400** if `inputFile` missing/blank |
+| `POST` | `/api/batch/customer/import?inputFile=…` | Accept import (**202**); body: `correlationId`, `status` (`QUEUED` or `STARTED`), optional `jobExecutionId`; **400** if `inputFile` is missing/blank or points at a resource the app cannot read; **503** if broker unreachable (`dev`) |
+| `GET` | `/api/batch/customer/import/by-correlation/{correlationId}/job` | Returns **`{"jobExecutionId":N}`** when the consumer has launched the job; **404** until mapped; **400** if `correlationId` is not a valid UUID |
 | `GET` | `/api/batch/customer/import/{jobExecutionId}/status` | Poll job status/progress (includes `filterCount`, `rejectedSample`) |
 | `GET` | `/api/batch/customer/import/{jobExecutionId}/report?limit=&offset=` | Paginated per-row audit from `IMPORT_REJECTED_ROW` (`PARSE_SKIP`, `READ_SKIPPED`, `PROCESS_SKIPPED`, `WRITE_SKIPPED`, `POLICY_FILTER`) |
 
 ### 5.2 Import a CSV bundled in the jar (`inputFile` required)
 
 ```bash
-curl -X POST "http://localhost:8080/api/batch/customer/import?inputFile=classpath:customers.csv"
-# → 202  {"jobExecutionId": 1}
+curl -s -X POST "http://localhost:8080/api/batch/customer/import?inputFile=classpath:customers.csv"
+# dev + RabbitMQ →  {"correlationId":"…","status":"QUEUED","jobExecutionId":null}
+# audit-it / no broker → {"correlationId":"…","status":"STARTED","jobExecutionId":1}
 ```
 
-Omitting `inputFile` or sending a blank value returns **400** (`ProblemDetail`, title `Missing input file`). Read skips (`skipCount`), policy-filtered rows (`filterCount`), and optional process/write skips are reflected in status counters; persisted reasons and raw fields appear in `rejectedSample` (first rows) and in the **report** endpoint. **Audit inserts are not swallowed:** if `IMPORT_REJECTED_ROW` insert fails, the step fails (check DDL vs `schema.sql` and `INSERT` privilege).
+Omitting `inputFile` or sending a blank value returns **400** (`ProblemDetail`, title `Missing input file`). A non-existent or unreadable resource also returns **400** (`ProblemDetail`, title `Invalid input file`) before any RabbitMQ command is published. Read skips (`skipCount`), policy-filtered rows (`filterCount`), and optional process/write skips are reflected in status counters; persisted reasons and raw fields appear in `rejectedSample` (first rows) and in the **report** endpoint. **Audit inserts are not swallowed:** if `IMPORT_REJECTED_ROW` insert fails, the step fails (check DDL vs `schema.sql` and `INSERT` privilege).
 
 **Counters vs `CUSTOMER`:** `readCount` counts successful reader items; `writeCount` is rows upserted; `skipCount` is Spring Batch read (and, when configured, process/write) skips; `filterCount` is processor returned `null` (policy filter). Rows that never become a `Customer` instance (read failure) only appear in audit when the exception is **skippable** and the skip listener runs—extend `.skip(...)` on `customerStep` if you need more exception types audited.
 
@@ -150,6 +168,9 @@ curl -X POST "http://localhost:8080/api/batch/customer/import?inputFile=file:/Us
 
 Notes:
 - Path must be accessible to the app process (your Mac filesystem).
+- Plain absolute paths also work locally, but `file:/absolute/path.csv` keeps the resource type explicit.
+- In local development, the publisher stages external local files into `target/classes/customer-imports/` and changes `inputFile` to `classpath:customer-imports/<correlationId>-<file>.csv` before RabbitMQ/direct job launch.
+- RabbitMQ sends only `{correlationId,inputFile,schemaVersion}`. It does **not** send the CSV bytes; after staging, `inputFile` is the staged classpath location.
 - If your path has spaces, URL-encode it in Postman or curl.
 
 ## 6) How to verify (Oracle)
@@ -164,7 +185,7 @@ sqlplus batch_user/batch_pass@//localhost:1521/XEPDB1
 ### 6.2 Check tables
 
 ```sql
-SELECT table_name FROM user_tables WHERE table_name IN ('CUSTOMER', 'IMPORT_REJECTED_ROW', 'BATCH_JOB_EXECUTION');
+SELECT table_name FROM user_tables WHERE table_name IN ('CUSTOMER', 'IMPORT_REJECTED_ROW', 'IMPORT_LAUNCH_CORRELATION', 'BATCH_JOB_EXECUTION');
 ```
 
 ### 6.3 Check imported rows
@@ -188,12 +209,22 @@ ORDER BY JOB_EXECUTION_ID DESC;
 
 ## 7) Internal flow (what calls what)
 
-### 7.1 Request → Job launch (async)
+### 7.1 Request → command → job launch (async)
 
-1. Postman hits `POST /api/batch/customer/import?inputFile=…` (parameter required)
-2. Controller calls `CustomerImportUseCase.launchImport(inputFile)`
-3. Infrastructure impl builds `JobParameters` and calls the **async** `JobLauncher.run()` — returns immediately
-4. Controller returns **202 Accepted** with `{"jobExecutionId": N}`
+**Profile `dev` (RabbitMQ enabled)**
+
+1. Client calls `POST /api/batch/customer/import?inputFile=…` (parameter required).
+2. Controller validates `inputFile` and confirms the resource exists/readable, generates a **UUID `correlationId`**, builds `CustomerImportCommand`, calls `CustomerImportCommandPublisher.publish`.
+3. `AmqpCustomerImportCommandPublisher` stages local filesystem inputs under `target/classes/customer-imports/` and sends JSON to exchange `customer.import.commands` with routing key `customer.import.command`; bundled `classpath:` inputs pass through unchanged.
+4. Controller returns **202** with `QUEUED` and `jobExecutionId: null`.
+5. `CustomerImportJobLaunchListener` receives the message (prefetch 1, JSON converter, retry + DLQ on the container factory).
+6. Listener calls `CustomerImportUseCase.launchImport(inputFile)` → validates/stages as a fallback, then async `JobLauncher.run()` as in Phase 1.
+7. Listener inserts `IMPORT_LAUNCH_CORRELATION` (`correlation_id` → `job_execution_id`).
+8. Client polls `GET .../by-correlation/{correlationId}/job` until **200**, then polls `GET .../{jobExecutionId}/status` as before.
+
+**Profiles `test` / `audit-it` (messaging disabled)**
+
+1–4. Same entry, but `DirectCustomerImportCommandPublisher` stages local filesystem inputs, calls `launchImport` on the HTTP thread, and registers correlation before returning **202** with `STARTED` and a non-null `jobExecutionId` (no RabbitMQ).
 
 ### 7.2 Job → Fault-tolerant step → chunk loop
 
@@ -218,7 +249,8 @@ ORDER BY JOB_EXECUTION_ID DESC;
 - Presentation (API): `.../presentation/api/BatchJobController.java`
 - Presentation (errors): `.../presentation/api/exceptions/BatchJobApiExceptionHandler.java`
 - Application ports + DTO: `.../application/customer/port/CustomerImportUseCase.java`, `CustomerUpsertPort.java`, `ImportAuditPort.java`; `.../application/customer/dto/CustomerImportResult.java`, `ImportAuditReport.java`
-- Application import input / errors: `.../application/customer/CustomerImportInputFile.java`; `.../application/customer/exceptions/` (`MissingInputFileException`, `ImportJobLaunchException`)
+- Application import input / errors: `.../application/customer/CustomerImportInputFile.java`; `.../application/customer/exceptions/` (`MissingInputFileException`, `ImportJobLaunchException`, `ImportCommandPublishException`, `InvalidCorrelationIdException`)
+- Phase 3 messaging: `.../application/customer/dto/CustomerImportCommand.java`, `CustomerImportEnqueueResponse.java`; ports `CustomerImportCommandPublisher`, `ImportLaunchCorrelationPort`; infra `.../adapter/messaging/*`, `.../config/messaging/CustomerImportRabbitConfig.java`, `JdbcImportLaunchCorrelationAdapter.java`
 - Domain policy: `.../domain/customer/policy/`
 - Job/Step + reader **configuration**: `.../infrastructure/batch/config/CustomerImportJobConfig.java`, `CustomerCsvItemReaderConfig.java`, `CustomerImportAuditListenerConfig.java`
 - Batch **adapters** + listeners: `.../infrastructure/adapter/batch/` (includes `CustomerImportAuditStepListener` for skip/process audit)
@@ -229,7 +261,48 @@ ORDER BY JOB_EXECUTION_ID DESC;
 ### 7.5 Why two classes named `*Config` under batch?
 
 - **`CustomerImportJobConfig`**: builds the **`Job`** and fault-tolerant **`Step`** (chunk, retry/skip, job + skip/process audit listener registration).
-- **`CustomerCsvItemReaderConfig`**: builds the **`@StepScope` `FlatFileItemReader`** so each run can resolve a different `inputFile` job parameter. Kept separate from the job graph for clarity and Spring Batch bean scopes.
+- **`CustomerCsvItemReaderConfig`**: builds the **`@StepScope` `FlatFileItemReader`** so each run can resolve a different `inputFile` job parameter. Kept separate from the job graph for clarity and Spring Batch bean scopes. Resource resolution is shared with the API validator; for **`classpath:`** inputs it uses the application class loader so the file still resolves when the step runs on a **`batch-*`** thread (Rabbit → async `JobLauncher`). If you see **`Input resource must exist`** on the reader, confirm the command contains a bundled `classpath:` file or a staged `classpath:customer-imports/...` file under `target/classes/customer-imports/`.
+
+### 7.6 Phase 3 — What to watch at each step (dev + RabbitMQ)
+
+| Step | Where to look | What you should see |
+|------|----------------|---------------------|
+| 1. POST accepted | HTTP **202** body | `status=QUEUED`, new `correlationId` |
+| 2. Message on broker | RabbitMQ UI → Queues → `customer.import.queue` | Message rate / ready count briefly > 0 |
+| 3. Listener ran | App logs | `Received customer import command` then `Launched customer import job … jobExecutionId=` |
+| 4. Mapping persisted | Oracle `IMPORT_LAUNCH_CORRELATION` or `GET …/by-correlation/…/job` | Row with your `correlation_id`, or **200** with `jobExecutionId` |
+| 5. Batch progress | `GET …/status` | `STARTED` → `COMPLETED` (or `FAILED` + HTTP 500) |
+
+### 7.7 RabbitMQ features used in this repo (and how to verify)
+
+| Feature | How we use it | How to check |
+|---------|----------------|--------------|
+| **Durable queues + persistent messages** | Survive broker restart (defaults via Spring AMQP for declared queues) | UI: queue features “Durable”; restart broker and resend |
+| **Direct exchange + routing key** | `customer.import.commands` → `customer.import.command` | UI: Exchanges / Bindings |
+| **Dead-letter exchange (DLX)** | Failed messages after retry land in `customer.import.dlq` | UI: DLQ message count; consume/reject a poison message in a test env |
+| **Prefetch (QoS)** | `prefetch=1` on the listener container | Steady one-in-flight consumer; UI consumer ack rate |
+| **Listener retry + backoff** | Stateless retry on listener failures (`RejectAndDontRequeueRecoverer`) | App logs show retries; then DLQ growth if still failing |
+| **JSON payloads** | `Jackson2JsonMessageConverter` on template + listener factory. For external local files, `inputFile` is the staged `classpath:customer-imports/...` value. | UI: Get messages → body is JSON `{correlationId,inputFile,schemaVersion}` |
+| **Management plugin** | Ops visibility | `http://localhost:15672` |
+
+Listener **ack mode** is **AUTO** (ack after successful handler return). Message durability is still provided by broker persistence + consumer retry/DLQ.
+
+### 7.8 Scenario playbooks (flows to try)
+
+1. **Happy path (`dev`)** — Start Oracle + Rabbit + app (`dev`). POST import with `classpath:customers.csv`. Poll `by-correlation` until `jobExecutionId`, then status until `COMPLETED`. Verify `CUSTOMER` rows in Oracle.
+2. **Happy path (`audit-it`)** — No Rabbit. POST returns `STARTED` + `jobExecutionId` immediately; poll status (same as Phase 1–2 UX).
+3. **External local file (`dev`)** — POST with `file:/Users/shubham.s/customers-any.csv`; app logs should show `Staged customer import file ... classpath:customer-imports/...`; Rabbit payload and job parameter use the staged classpath location.
+4. **Missing `inputFile`** — POST without query param → **400** `Missing input file`; no queue message.
+5. **Invalid file path** — POST with `file:/path/to/your/customers.csv` before editing it to a real path → **400** `Invalid input file`; no queue message.
+6. **Broker down (`dev`)** — Stop Rabbit; restart app (expect failure) **or** POST while app up but broker stopped → **503** `Import command publish failed` if publish throws.
+6. **Unknown correlation** — `GET …/by-correlation/{random-uuid}/job` before POST or for never-registered UUID → **404** once polling (or immediately if no row).
+7. **Invalid correlation path** — `GET …/by-correlation/not-a-uuid/job` → **400** `Invalid correlation id`.
+8. **Poison message (advanced)** — Publish an invalid JSON body manually to the queue (management “Publish message”) → consumer fails → after retries message moves to **`customer.import.dlq`**; inspect payload in UI.
+9. **DLQ inspection** — UI → Queues → `customer.import.dlq` → get messages; requeue or discard only after you understand the failure.
+
+### 7.9 Automated AMQP test
+
+`CustomerImportAmqpEndToEndIntegrationTest` (`@ActiveProfiles("amqp-it")`) uses **Testcontainers** RabbitMQ + H2 batch metadata. Requires Docker when running `./mvnw test` (otherwise the test is skipped).
 
 ## 8) Tests
 
@@ -254,6 +327,8 @@ src/test/java/
         ├── SpringBatchDemoApplicationTests.java
         ├── batch/
         │   └── CustomerImportBatchAuditIntegrationTest.java   (@ActiveProfiles("audit-it") + H2)
+        ├── messaging/
+        │   └── CustomerImportAmqpEndToEndIntegrationTest.java   (@ActiveProfiles("amqp-it") + Testcontainers RabbitMQ)
         └── presentation/api/
             ├── BatchJobControllerWebMvcIntegrationTest.java
             └── BatchJobImportInputFileApiIntegrationTest.java
@@ -293,6 +368,11 @@ This codebase is being evolved toward **Onion Architecture** (dependencies point
 See `SD-ARCHITECTURE.md` for the target package structure and refactor plan, while keeping the current root package `com.example.spring_batch_demo`.
 
 ## 10) Troubleshooting
+
+### `dev` profile fails at startup with RabbitMQ / connection refused
+
+- Start RabbitMQ first: `docker compose -f docker-compose.rabbitmq.yml up -d` and wait for the container to be healthy.
+- Or run **`audit-it`** / default **`test`** profile paths where messaging is **disabled** (no broker).
 
 ### "200 OK but no rows inserted"
 - Check the API response: it returns **500** on job failure (with reason).

@@ -1,6 +1,6 @@
 # Spring Batch CSV → Oracle (Docker XE)
 
-This project imports customers from a CSV file into an Oracle database using **Spring Batch**. A REST API triggers the import so you can run it from **Postman**.
+This project imports customers from a CSV file into an Oracle database using **Spring Batch**. A REST API triggers the import so you can run it from **Postman** or curl. **Phase 3:** with profile **`dev`**, imports are **published to RabbitMQ** first; use **`audit-it`** for in-process launch without a broker.
 
 ## What it does
 
@@ -8,7 +8,7 @@ This project imports customers from a CSV file into an Oracle database using **S
 - Filters invalid rows (email must contain `@`)
 - Uppercases customer names
 - Writes to Oracle table `CUSTOMER` using an **upsert** (`MERGE`) so reruns do not fail on duplicate IDs
-- **Async API**: POST returns 202 immediately with a `jobExecutionId`; poll status via GET
+- **Async API**: POST returns **202** with `correlationId` + `status` (`QUEUED` in `dev` with RabbitMQ, or `STARTED` when messaging is off); resolve `jobExecutionId` via `GET .../by-correlation/{id}/job` when `QUEUED`, then poll status via GET
 - **Fault-tolerant batch step**: retries transient DB errors (3x, exponential backoff), skips malformed CSV rows
 
 ## Prerequisites
@@ -27,6 +27,12 @@ docker ps | grep oracle-db || true
 
 If you don't have it running yet, see `RUNBOOK.md`.
 
+For **`dev`** you also need **RabbitMQ** (Phase 3):
+
+```bash
+docker compose -f docker-compose.rabbitmq.yml up -d
+```
+
 ### 2) Run the app (dev profile recommended)
 
 ```bash
@@ -40,13 +46,14 @@ The `dev` profile:
 
 ### 3) Trigger import (Postman/curl)
 
-The POST endpoint launches the job **asynchronously** and returns **202 Accepted** immediately. Query parameter **`inputFile` is required** (non-blank Spring resource location); omitting it or sending only whitespace returns **400** with a `ProblemDetail` body.
+The POST endpoint launches the job **asynchronously** and returns **202 Accepted** immediately. Query parameter **`inputFile` is required** (non-blank Spring resource location); omitting it, sending only whitespace, or pointing at a resource the app cannot read returns **400** with a `ProblemDetail` body.
 
 Bundled sample CSV on the classpath:
 
 ```bash
-curl -X POST "http://localhost:8080/api/batch/customer/import?inputFile=classpath:customers.csv"
-# → 202  {"jobExecutionId": 1}
+curl -s -X POST "http://localhost:8080/api/batch/customer/import?inputFile=classpath:customers.csv"
+# dev + RabbitMQ → {"correlationId":"…","status":"QUEUED","jobExecutionId":null}
+# then: curl -s "http://localhost:8080/api/batch/customer/import/by-correlation/<correlationId>/job"
 ```
 
 Another classpath CSV:
@@ -61,9 +68,11 @@ Import a file from your machine:
 curl -X POST "http://localhost:8080/api/batch/customer/import?inputFile=file:/Users/shubham.s/customers.csv"
 ```
 
+The `file:` path must be absolute and readable by the running app process. For local development, external local files are copied to `target/classes/customer-imports/` and the import command/job uses a staged `classpath:customer-imports/...` location. RabbitMQ still carries only a location string, not the CSV bytes.
+
 ### 4) Poll job status
 
-Use the `jobExecutionId` from the POST response:
+Use the `jobExecutionId` from the correlation resolution step (or directly from POST when `status` is `STARTED`):
 
 ```bash
 curl "http://localhost:8080/api/batch/customer/import/1/status"
@@ -78,11 +87,11 @@ While the job is running, `status` will be `STARTED`. When done, it will be `COM
   - `.../presentation/api/BatchJobController.java`
   - `.../presentation/api/exceptions/BatchJobApiExceptionHandler.java` (scoped errors + `ProblemDetail`)
 - **Application (ports + DTOs)**:
-  - `.../application/customer/port/CustomerImportUseCase.java`
+  - `.../application/customer/port/CustomerImportUseCase.java`, `CustomerImportCommandPublisher.java`, `CustomerImportInputFileValidator.java`, `CustomerImportInputFileStagingPort.java`, `ImportLaunchCorrelationPort.java`
   - `.../application/customer/port/CustomerUpsertPort.java`
   - `.../application/customer/port/ImportAuditPort.java`
-  - `.../application/customer/dto/CustomerImportResult.java`, `ImportAuditReport.java` (job / polling + audit, not domain)
-  - `.../application/customer/CustomerImportInputFile.java` (required `inputFile` path rules); `.../application/customer/exceptions/` (`ImportJobLaunchException`, `MissingInputFileException`)
+  - `.../application/customer/dto/CustomerImportResult.java`, `ImportAuditReport.java`, `CustomerImportCommand.java`, `CustomerImportEnqueueResponse.java` (job / polling + audit + enqueue, not domain)
+  - `.../application/customer/CustomerImportInputFile.java` (required `inputFile` path rules); `.../application/customer/exceptions/` (`ImportJobLaunchException`, `InvalidInputFileResourceException`, `MissingInputFileException`)
 - **Domain (model + policy)**:
   - `.../domain/customer/Customer.java`
   - `.../domain/importaudit/` (`RejectedRow`, `ImportRejectionCategory`)
@@ -92,8 +101,9 @@ While the job is running, `status` will be `STARTED`. When done, it will be `COM
   - `.../common/package-info.java`
 - **Infrastructure**:
   - **Batch wiring (`@Configuration`)**: `.../infrastructure/batch/config/CustomerImportJobConfig.java` (job + fault-tolerant step), `CustomerCsvItemReaderConfig.java`, `CustomerImportAuditListenerConfig.java`
-  - **Adapters (implementations)**: `.../infrastructure/adapter/batch/` — use-case impl, processor/writer adapters, `JobCompletionListener`, `CustomerImportAuditStepListener`; `.../infrastructure/adapter/persistence/OracleCustomerUpsertPortAdapter.java` (Oracle MERGE), `JdbcImportAuditPortAdapter.java`
-  - **Other config**: `.../infrastructure/config/AsyncJobLauncherConfig.java`, `JdbcConfig`, `DomainPolicyConfig`
+  - **Adapters (implementations)**: `.../infrastructure/adapter/batch/` — use-case impl, processor/writer adapters, `JobCompletionListener`, `CustomerImportAuditStepListener`; `.../infrastructure/adapter/persistence/OracleCustomerUpsertPortAdapter.java` (Oracle MERGE), `JdbcImportAuditPortAdapter.java`; `.../infrastructure/adapter/resource/` (Spring `Resource` validation/resolution + local classpath staging)
+  - **Other config**: `.../infrastructure/config/AsyncJobLauncherConfig.java`, `JdbcConfig`, `DomainPolicyConfig`, `.../infrastructure/config/messaging/` (RabbitMQ topology + listener factory when enabled)
+  - **Messaging adapters**: `.../infrastructure/adapter/messaging/` (AMQP publisher, direct publisher, listener)
   - **Dev DB diagnostics**: `.../infrastructure/diagnostics/DevStartupDiagnostics.java`
 - **Schema init**: `src/main/resources/schema.sql`
 - **Sample CSVs**: `customers.csv`, `customers-01.csv` … `customers-04.csv`, `customers-phase2-audit-sample.csv`, `customers-import-audit-sample.csv` (integration / audit demos) under `src/main/resources/`
