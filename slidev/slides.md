@@ -243,7 +243,7 @@ erDiagram
 - `status`
 - `failures`
 - `readCount`, `writeCount`, `skipCount`, `filterCount`
-- first 10 audit rows as `rejectedSample`
+- no row-level audit sample; use `GET .../report` for persisted rejected rows
 
 `GET .../report` is the detailed row-level view:
 

@@ -525,9 +525,9 @@ These can be done alongside any phase:
 
 ### 28) Recreate “onion-spring-batch-01” stash intent on current branch (no stash merge)
 
-- **Prompt summary**: User had applied prompts 1–7 on branch `onion-spring-batch-01` (exception handling, `presentation.api.exception`, split `port` / `adapter` packages, `common`, `application.customer.dto`, domain `policy` + validation placeholder), then stashed as `phase-1-restructure-bugs-02`; stash conflicts with newer commits. Recreate the same logical/structural outcome on the current tree without resolving the stash.
+- **Prompt summary**: User had applied prompts 1–7 on branch `onion-spring-batch-01` around exception handling and the initial onion package split, then stashed as `phase-1-restructure-bugs-02`; stash conflicts with newer commits. Recreate the same logical/structural outcome on the current tree without resolving the stash.
 - **Changes done** (verification + doc alignment):
-  - Confirmed code layout: `application.customer.port` / `dto`, `domain.customer.policy`, `infrastructure.adapter.batch` / `adapter.persistence`, `infrastructure.batch.config`, `presentation.api.exception`, `ImportJobLaunchException`, `common.package-info`, `domain.validation.package-info`.
+  - Confirmed code layout: `application.customer.port` / `dto`, `domain.customer.policy`, `infrastructure.adapter.batch` / `adapter.persistence`, `infrastructure.config.batch`, `presentation.api.exceptions`, `ImportJobLaunchException`.
   - **Docs/rules**: `SD-DESIGN.md`, `RUNBOOK.md` (paths, §7.5 two batch `*Config` classes), `.cursor/rules/onion-architecture.mdc` (DTO path), `.cursor/skills/spring-batch-onion-workflow/SKILL.md` (checklist: adapter vs config, exception package, port/dto/policy).
 - **Outcome**: Documentation and skill text match the refactored packages; user can drop the conflicting stash when satisfied.
 
@@ -562,14 +562,14 @@ These can be done alongside any phase:
 - **Prompt summary**: Implement reporting and audit pipeline per `ROADMAP.md` Phase 2: persist rejected rows, extend status, add report API, document and test end-to-end.
 - **Changes done**:
   - **Domain**: `ImportRejectionCategory`, `RejectedRow` in `domain/importaudit/`.
-  - **Application**: `ImportAuditPort`, `ImportAuditReport`, `ImportRejectionReasons`; `CustomerImportUseCase.getImportAuditReport`; `CustomerImportResult` extended with `filterCount` and `rejectedSample`.
+  - **Application**: `ImportAuditPort`, `ImportAuditReport`, `ImportRejectionReasons`; `CustomerImportUseCase.getImportAuditReport`; `CustomerImportResult` extended with `filterCount`.
   - **Infrastructure**: `JdbcImportAuditPortAdapter` (`PROPAGATION_REQUIRES_NEW` via `TransactionTemplate`); `CustomerImportAuditStepListener` (`SkipListener` + `ItemProcessListener`, `StepSynchronizationManager`); `CustomerImportAuditListenerConfig`; step wiring in `CustomerImportJobConfig`; Oracle DDL `IMPORT_REJECTED_ROW` in `schema.sql`.
   - **REST**: `GET /api/batch/customer/import/{id}/report` in `BatchJobController`.
   - **Persistence (profile `audit-it`)**: `NoOpCustomerUpsertPortAdapter` (`@Profile("audit-it")`); `OracleCustomerUpsertPortAdapter` annotated `@Profile("!audit-it")` so H2 smoke does not execute Oracle `MERGE`.
   - **Tests**: `CustomerImportBatchAuditIntegrationTest` (`audit-it` profile + H2), `CustomerImportAuditStepListenerTest`, updated WebMvc/use-case/job-config tests.
   - **Resources**: `application-audit-it.properties`, `schema-h2-import-audit-it.sql` under `src/main/resources` (shared by tests and `spring-boot:run`).
   - **Docs**: `README.md`, `RUNBOOK.md`, `SD-DESIGN.md`, `SD-ARCHITECTURE.md`, `ROADMAP.md`, `slidev/slides.md`.
-- **Outcome**: Clients can poll `filterCount` / `rejectedSample` and fetch paginated audit rows; `PARSE_SKIP` vs `POLICY_FILTER` is explicit in persisted data.
+- **Outcome**: Clients can poll `filterCount` and fetch paginated audit rows; `PARSE_SKIP` vs `POLICY_FILTER` is explicit in persisted data.
 
 ---
 
@@ -583,7 +583,7 @@ These can be done alongside any phase:
   - **`slidev/slides.md`**: closing slide links to Phase 2 deck.
   - **`src/main/resources/customers-phase2-audit-sample.csv`**: classpath sample for curl smoke (same shape as integration test CSV).
   - **`RUNBOOK.md` §4.3**: curl example for `audit-it` smoke.
-  - **Verification**: `./mvnw clean verify`; `npm run build:all`; manual **`audit-it`** smoke on port **19082** — POST import → poll status (`filterCount`, `rejectedSample`) → GET report (`totalRejectedRows`, `PARSE_SKIP` / `POLICY_FILTER` rows).
+  - **Verification**: `./mvnw clean verify`; `npm run build:all`; manual **`audit-it`** smoke on port **19082** — POST import → poll status (`filterCount`) → GET report (`totalRejectedRows`, `PARSE_SKIP` / `POLICY_FILTER` rows).
 - **Outcome**: Phase 2 is presentable on its own; CI-style checks green; local HTTP path validated without Oracle Docker.
 
 ---
@@ -659,4 +659,17 @@ Phase 1 (Async API)
   - `AmqpCustomerImportCommandPublisher` publishes the staged command; `DirectCustomerImportCommandPublisher` and `SpringBatchCustomerImportUseCase` stage as fallback for non-Rabbit/programmatic paths.
   - `SpringResourceCustomerImportInputFileValidator` now accepts plain local paths as well as `file:` and `classpath:`.
   - Updated README, RUNBOOK, SD docs, Postman collection text, and Slidev flow.
-- **Verification**: `./mvnw -q -DskipTests compile`; `./mvnw -q clean test`.
+  - **Verification**: `./mvnw -q -DskipTests compile`; `./mvnw -q clean test`.
+
+---
+
+### 36) Status payload cleanup + local aid sync
+
+- **Prompt summary**: Remove row-level audit samples from `GET /status`, move batch config under `infrastructure.config.batch`, remove placeholder-only `common` / `domain.validation`, and make sure prompts, Postman, Slidev, and local workflow rules stay aligned.
+- **Changes done**:
+  - **Status DTO / API**: `CustomerImportResult` now exposes only counters + failures + `filterCount`; row-level audit remains on `GET /report`.
+  - **Use-case boundary**: `SpringBatchCustomerImportUseCase.getImportStatus` no longer reads audit rows; staging ownership stays with the publishers/local staging adapter for the current local-only RabbitMQ path.
+  - **Package structure**: batch `@Configuration` classes now live under `infrastructure.config.batch`; placeholder-only `common/package-info.java` and `domain/validation/package-info.java` were removed.
+  - **Local aids**: updated `PROMPTS.md`, `.cursor/skills/spring-batch-onion-workflow/SKILL.md`, `.cursor/rules/slidev-deck.mdc`, local Postman collection copy, and Slidev source decks so they describe the current code rather than the older interim status-sample shape.
+  - **Verification**: `./mvnw clean test`; `cd slidev && npm run build:all`; rebuild updated legacy/reference Slidev decks with explicit `npx slidev build ... --out ...` commands when those sources change.
+- **Outcome**: Code, docs, prompts, Slidev, Postman, and local workflow guidance all describe the same current behavior: status is operational metadata, report owns rejected-row details, and batch config sits under `infrastructure.config.batch`.

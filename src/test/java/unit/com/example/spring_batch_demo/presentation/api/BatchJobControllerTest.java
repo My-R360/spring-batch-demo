@@ -127,7 +127,7 @@ class BatchJobControllerTest {
 
     @Test
     void getImportStatusReturnsResultWhenFound() {
-        CustomerImportResult result = new CustomerImportResult(50L, "COMPLETED", List.of(), 10L, 8L, 2L, 0L, List.of());
+        CustomerImportResult result = new CustomerImportResult(50L, "COMPLETED", List.of(), 10L, 8L, 2L, 0L);
         when(importUseCase.getImportStatus(50L)).thenReturn(result);
 
         ResponseEntity<CustomerImportResult> response = controller.getImportStatus(50L);
@@ -147,7 +147,7 @@ class BatchJobControllerTest {
 
     @Test
     void getImportStatusReturnsInProgressJob() {
-        CustomerImportResult result = new CustomerImportResult(60L, "STARTED", List.of(), 5L, 3L, 0L, 0L, List.of());
+        CustomerImportResult result = new CustomerImportResult(60L, "STARTED", List.of(), 5L, 3L, 0L, 0L);
         when(importUseCase.getImportStatus(60L)).thenReturn(result);
 
         ResponseEntity<CustomerImportResult> response = controller.getImportStatus(60L);
@@ -158,7 +158,7 @@ class BatchJobControllerTest {
 
     @Test
     void getImportStatusReturnsServerErrorWhenBatchFailed() {
-        CustomerImportResult result = new CustomerImportResult(70L, "FAILED", List.of(), 0L, 0L, 0L, 0L, List.of());
+        CustomerImportResult result = new CustomerImportResult(70L, "FAILED", List.of(), 0L, 0L, 0L, 0L);
         when(importUseCase.getImportStatus(70L)).thenReturn(result);
 
         ResponseEntity<CustomerImportResult> response = controller.getImportStatus(70L);
@@ -169,7 +169,7 @@ class BatchJobControllerTest {
 
     @Test
     void getImportStatusReturnsServerErrorForFailedIgnoringCase() {
-        CustomerImportResult result = new CustomerImportResult(71L, "failed", List.of("step died"), 1L, 0L, 1L, 0L, List.of());
+        CustomerImportResult result = new CustomerImportResult(71L, "failed", List.of("step died"), 1L, 0L, 1L, 0L);
         when(importUseCase.getImportStatus(71L)).thenReturn(result);
 
         ResponseEntity<CustomerImportResult> response = controller.getImportStatus(71L);

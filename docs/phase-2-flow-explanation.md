@@ -4,7 +4,7 @@ Phase 2 adds rejected-row audit and reporting on top of the Phase 1 import job. 
 
 The main user-visible additions are:
 
-- status includes `filterCount` and `rejectedSample`
+- status includes `filterCount`
 - new report endpoint returns paginated rejected rows
 - `IMPORT_REJECTED_ROW` stores category, line number, reason, and source fields
 
@@ -26,9 +26,9 @@ Chronological startup flow:
 10. Spring registers `asyncJobLauncher` from [AsyncJobLauncherConfig.java](../src/main/java/com/example/spring_batch_demo/infrastructure/config/AsyncJobLauncherConfig.java) (line 18). A worker thread is not created until a request launches a job.
 11. Spring registers `CustomerImportPolicy` from [DomainPolicyConfig.java](../src/main/java/com/example/spring_batch_demo/infrastructure/config/DomainPolicyConfig.java) (line 18), `NamedParameterJdbcTemplate` from [JdbcConfig.java](../src/main/java/com/example/spring_batch_demo/infrastructure/config/JdbcConfig.java) (line 18), and persistence adapters by component scanning.
 12. Spring registers `JdbcImportAuditPortAdapter` from [JdbcImportAuditPortAdapter.java](../src/main/java/com/example/spring_batch_demo/infrastructure/adapter/persistence/JdbcImportAuditPortAdapter.java) (class line 18). Its constructor creates a `TransactionTemplate` configured with `PROPAGATION_REQUIRES_NEW`, so audit inserts can use separate transactions when the job runs.
-13. Spring registers the Step-scoped `CustomerImportAuditStepListener` bean definition from [CustomerImportAuditListenerConfig.java](../src/main/java/com/example/spring_batch_demo/infrastructure/batch/config/CustomerImportAuditListenerConfig.java) (line 16). Because it is `@StepScope`, the listener instance is resolved during step execution with the current reader and audit port.
-14. Spring registers the Step-scoped `customerReader` bean definition from [CustomerCsvItemReaderConfig.java](../src/main/java/com/example/spring_batch_demo/infrastructure/batch/config/CustomerCsvItemReaderConfig.java) (line 30). The actual reader waits for job parameters.
-15. Spring registers `customerJob` and `customerStep` from [CustomerImportJobConfig.java](../src/main/java/com/example/spring_batch_demo/infrastructure/batch/config/CustomerImportJobConfig.java) (lines 64 and 79). During this wiring, the step is configured with the audit listener as both `SkipListener` and `ItemProcessListener`.
+13. Spring registers the Step-scoped `CustomerImportAuditStepListener` bean definition from [CustomerImportAuditListenerConfig.java](../src/main/java/com/example/spring_batch_demo/infrastructure/config/batch/CustomerImportAuditListenerConfig.java) (line 16). Because it is `@StepScope`, the listener instance is resolved during step execution with the current reader and audit port.
+14. Spring registers the Step-scoped `customerReader` bean definition from [CustomerCsvItemReaderConfig.java](../src/main/java/com/example/spring_batch_demo/infrastructure/config/batch/CustomerCsvItemReaderConfig.java) (line 30). The actual reader waits for job parameters.
+15. Spring registers `customerJob` and `customerStep` from [CustomerImportJobConfig.java](../src/main/java/com/example/spring_batch_demo/infrastructure/config/batch/CustomerImportJobConfig.java) (lines 64 and 79). During this wiring, the step is configured with the audit listener as both `SkipListener` and `ItemProcessListener`.
 16. Spring evaluates publisher conditions. With `audit-it`, it registers `DirectCustomerImportCommandPublisher` from [DirectCustomerImportCommandPublisher.java](../src/main/java/com/example/spring_batch_demo/infrastructure/adapter/messaging/DirectCustomerImportCommandPublisher.java) (line 16) and does not register AMQP publisher/listener beans.
 17. Spring evaluates writer profiles. `audit-it` registers `NoOpCustomerUpsertPortAdapter` from [NoOpCustomerUpsertPortAdapter.java](../src/main/java/com/example/spring_batch_demo/infrastructure/adapter/persistence/NoOpCustomerUpsertPortAdapter.java) (line 15), so Phase 2 smoke can verify batch/audit behavior without Oracle customer MERGE.
 
@@ -38,7 +38,7 @@ At the end of startup, the report endpoint exists, the audit table exists, the a
 
 Important DTOs and domain types:
 
-- `CustomerImportResult` in [CustomerImportResult.java](../src/main/java/com/example/spring_batch_demo/application/customer/dto/CustomerImportResult.java) (line 13) now includes `filterCount` and `rejectedSample`.
+- `CustomerImportResult` in [CustomerImportResult.java](../src/main/java/com/example/spring_batch_demo/application/customer/dto/CustomerImportResult.java) (line 13) now includes `filterCount`.
 - `ImportAuditReport` in [ImportAuditReport.java](../src/main/java/com/example/spring_batch_demo/application/customer/dto/ImportAuditReport.java) (line 10) is the report response body.
 - `RejectedRow` in [RejectedRow.java](../src/main/java/com/example/spring_batch_demo/domain/importaudit/RejectedRow.java) (line 13) is the audit row shape.
 - `ImportRejectionCategory` in [ImportRejectionCategory.java](../src/main/java/com/example/spring_batch_demo/domain/importaudit/ImportRejectionCategory.java) (line 6) defines the reason categories.
@@ -71,7 +71,7 @@ The request path starts the same way as Phase 1:
 5. In the Phase 2 local smoke profile (`audit-it`), [DirectCustomerImportCommandPublisher.java](../src/main/java/com/example/spring_batch_demo/infrastructure/adapter/messaging/DirectCustomerImportCommandPublisher.java) handles `publish` (line 31).
 6. The direct publisher calls `CustomerImportUseCase.launchImport` in [CustomerImportUseCase.java](../src/main/java/com/example/spring_batch_demo/application/customer/port/CustomerImportUseCase.java) (line 25).
 7. [SpringBatchCustomerImportUseCase.java](../src/main/java/com/example/spring_batch_demo/infrastructure/adapter/batch/SpringBatchCustomerImportUseCase.java) launches the job in `launchImport` (line 54).
-8. Spring Batch executes `customerJob` from [CustomerImportJobConfig.java](../src/main/java/com/example/spring_batch_demo/infrastructure/batch/config/CustomerImportJobConfig.java) (line 64) and `customerStep` (line 79).
+8. Spring Batch executes `customerJob` from [CustomerImportJobConfig.java](../src/main/java/com/example/spring_batch_demo/infrastructure/config/batch/CustomerImportJobConfig.java) (line 64) and `customerStep` (line 79).
 9. The controller returns `202 Accepted` with `CustomerImportEnqueueResponse` from [CustomerImportEnqueueResponse.java](../src/main/java/com/example/spring_batch_demo/application/customer/dto/CustomerImportEnqueueResponse.java) (line 12).
 
 In `audit-it`, success response normally has `status="STARTED"` and a non-null `jobExecutionId`.
@@ -82,8 +82,8 @@ The Phase 2 value starts inside `customerStep`.
 
 Chronological batch and audit flow:
 
-1. Spring Batch starts `customerStep` in [CustomerImportJobConfig.java](../src/main/java/com/example/spring_batch_demo/infrastructure/batch/config/CustomerImportJobConfig.java) (line 79).
-2. The step reads rows through `customerReader` in [CustomerCsvItemReaderConfig.java](../src/main/java/com/example/spring_batch_demo/infrastructure/batch/config/CustomerCsvItemReaderConfig.java) (line 30).
+1. Spring Batch starts `customerStep` in [CustomerImportJobConfig.java](../src/main/java/com/example/spring_batch_demo/infrastructure/config/batch/CustomerImportJobConfig.java) (line 79).
+2. The step reads rows through `customerReader` in [CustomerCsvItemReaderConfig.java](../src/main/java/com/example/spring_batch_demo/infrastructure/config/batch/CustomerCsvItemReaderConfig.java) (line 30).
 3. If read succeeds, the reader maps the row to `Customer` in [Customer.java](../src/main/java/com/example/spring_batch_demo/domain/customer/Customer.java) (line 9).
 4. The step calls `CustomerItemProcessorAdapter.process` in [CustomerItemProcessorAdapter.java](../src/main/java/com/example/spring_batch_demo/infrastructure/adapter/batch/CustomerItemProcessorAdapter.java) (line 22).
 5. The processor delegates to `EmailAndNameCustomerImportPolicy.apply` in [EmailAndNameCustomerImportPolicy.java](../src/main/java/com/example/spring_batch_demo/domain/customer/policy/EmailAndNameCustomerImportPolicy.java) (line 17).
@@ -114,7 +114,7 @@ Phase 2 also records skippable exceptions:
 7. `onSkipInWrite` records category `WRITE_SKIPPED` and reason from `ImportRejectionReasons.writeSkippedDetail` in [ImportRejectionReasons.java](../src/main/java/com/example/spring_batch_demo/application/customer/audit/ImportRejectionReasons.java) (line 28).
 8. Every audit branch calls `ImportAuditPort.recordRejected`, which ends at `JdbcImportAuditPortAdapter.insertRow`.
 
-## Endpoint 1: GET status with rejected sample
+## Endpoint 1: GET status
 
 Request:
 
@@ -131,10 +131,8 @@ Chronological call flow:
 5. If the execution does not exist, it returns `null`; the controller returns `404`.
 6. If execution exists, it resolves failure messages via `resolveFailureMessages` in [SpringBatchCustomerImportUseCase.java](../src/main/java/com/example/spring_batch_demo/infrastructure/adapter/batch/SpringBatchCustomerImportUseCase.java) (line 135).
 7. It sums step-level `readCount`, `writeCount`, `skipCount`, and `filterCount`.
-8. It calls `ImportAuditPort.loadRows(jobExecutionId, 10, 0)` in [ImportAuditPort.java](../src/main/java/com/example/spring_batch_demo/application/customer/port/ImportAuditPort.java) (line 27).
-9. The implementation `JdbcImportAuditPortAdapter.loadRows` in [JdbcImportAuditPortAdapter.java](../src/main/java/com/example/spring_batch_demo/infrastructure/adapter/persistence/JdbcImportAuditPortAdapter.java) (line 82) selects audit rows from `IMPORT_REJECTED_ROW`, ordered by `ID`.
-10. The use case returns `CustomerImportResult` in [CustomerImportResult.java](../src/main/java/com/example/spring_batch_demo/application/customer/dto/CustomerImportResult.java) (line 13).
-11. The controller returns `500` if status is `FAILED`; otherwise it returns `200`.
+8. The use case returns `CustomerImportResult` in [CustomerImportResult.java](../src/main/java/com/example/spring_batch_demo/application/customer/dto/CustomerImportResult.java) (line 13).
+9. The controller returns `500` if status is `FAILED`; otherwise it returns `200`.
 
 Example response:
 
@@ -146,17 +144,7 @@ Example response:
   "readCount": 100,
   "writeCount": 95,
   "skipCount": 2,
-  "filterCount": 3,
-  "rejectedSample": [
-    {
-      "category": "POLICY_FILTER",
-      "lineNumber": 12,
-      "reason": "Invalid email: missing @",
-      "sourceId": "17",
-      "sourceName": "Bob",
-      "sourceEmail": "bob.example.com"
-    }
-  ]
+  "filterCount": 3
 }
 ```
 
@@ -216,7 +204,7 @@ Example response:
 | Report known job with `FAILED` status | `500` with `ImportAuditReport` body |
 | Report/status known non-failed job | `200` |
 
-`COMPLETED` with rejected rows is still successful HTTP `200`. Rejected business rows are represented by `skipCount`, `filterCount`, `rejectedSample`, and report rows.
+`COMPLETED` with rejected rows is still successful HTTP `200`. Rejected business rows are represented by `skipCount`, `filterCount`, and report rows.
 
 ## Phase 2 database objects
 

@@ -17,7 +17,7 @@ Instead of only showing aggregate skip/filter counts, the batch step records per
 
 | Before | After Phase 2 |
 |--------|---------------|
-| status had execution counts | status includes counts plus `rejectedSample` |
+| status had execution counts | status includes counts plus `filterCount` |
 | invalid email rows only incremented filter count | invalid email rows are persisted as `POLICY_FILTER` |
 | parse skips were visible only as skip count/logs | parse skips are persisted with line number and raw input |
 | no audit browsing endpoint | `GET /report?limit=&offset=` returns paginated rejected rows |
@@ -218,20 +218,17 @@ actor Client
 participant API as BatchJobController
 participant UC as SpringBatchCustomerImportUseCase
 participant Explorer as JobExplorer
-participant Audit as ImportAuditPort
 participant DB as BATCH_* + IMPORT_REJECTED_ROW
 
 Client->>API: GET /api/batch/customer/import/{id}/status
 API->>UC: getImportStatus(id)
 UC->>Explorer: getJobExecution(id)
 Explorer->>DB: load job + step metadata
-UC->>Audit: loadRows(id, 10, 0)
-Audit->>DB: SELECT rejected sample
 UC-->>API: CustomerImportResult
 API-->>Client: 200, 404, or 500
 ```
 
-Status is optimized for quick progress plus a small sample, not full audit browsing.
+Status is optimized for quick progress counters and failure text, not full audit browsing.
 
 ---
 
@@ -245,21 +242,11 @@ Status is optimized for quick progress plus a small sample, not full audit brows
   "readCount": 100,
   "writeCount": 95,
   "skipCount": 2,
-  "filterCount": 3,
-  "rejectedSample": [
-    {
-      "category": "POLICY_FILTER",
-      "lineNumber": 12,
-      "reason": "Invalid email: missing @",
-      "sourceId": "17",
-      "sourceName": "BOB",
-      "sourceEmail": "bob.example.com"
-    }
-  ]
+  "filterCount": 3
 }
 ```
 
-`rejectedSample` returns up to 10 rows.
+Use status for counters and failures. Use `GET .../report` for persisted row details.
 
 ---
 

@@ -20,7 +20,7 @@ Phase 2 answers the next operational question:
 | Area | Added in Phase 2 |
 |------|------------------|
 | Domain | `RejectedRow`, `ImportRejectionCategory` |
-| Application | `ImportAuditPort`, `ImportAuditReport`, `filterCount`, `rejectedSample` |
+| Application | `ImportAuditPort`, `ImportAuditReport`, `filterCount` |
 | Infrastructure | `CustomerImportAuditStepListener`, `JdbcImportAuditPortAdapter` |
 | Batch config | skip/process listeners wired to `customerStep` |
 | DB | `IMPORT_REJECTED_ROW` |
@@ -128,7 +128,6 @@ class CustomerImportResult {
   +writeCount
   +skipCount
   +filterCount
-  +rejectedSample
 }
 
 class ImportAuditReport {
@@ -150,7 +149,6 @@ class RejectedRow {
 CustomerImportUseCase --> CustomerImportResult
 CustomerImportUseCase --> ImportAuditReport
 ImportAuditPort --> RejectedRow
-CustomerImportResult --> RejectedRow
 ImportAuditReport --> RejectedRow
 ```
 
@@ -165,12 +163,12 @@ flowchart LR
   JDBC[JdbcImportAuditPortAdapter] -.->|implements| PORT
   JDBC --> TX[TransactionTemplate REQUIRES_NEW]
   TX --> TABLE[(IMPORT_REJECTED_ROW)]
-  UC[SpringBatchCustomerImportUseCase] --> PORT
+  UC[SpringBatchCustomerImportUseCase] -. report queries .-> PORT
   UC --> REPORT[ImportAuditReport]
   UC --> STATUS[CustomerImportResult]
 ```
 
-The listener writes audit rows. The use case reads them for status and report APIs.
+The listener writes audit rows. The use case reads them for the report API, while status stays focused on Batch metadata counters.
 
 ---
 
@@ -235,12 +233,11 @@ Oracle DDL lives in `schema.sql`. H2 smoke DDL lives in `schema-h2-import-audit-
   "readCount": 4,
   "writeCount": 2,
   "skipCount": 1,
-  "filterCount": 1,
-  "rejectedSample": []
+  "filterCount": 1
 }
 ```
 
-Use this for dashboards and quick progress checks.
+Use this for dashboards and quick progress checks. For persisted rejected rows, call the report endpoint.
 
 ---
 
@@ -294,7 +291,6 @@ The body stays parseable on `500`, so clients can still inspect partial audit ev
 | `writeCount` | processed items written to the writer |
 | `skipCount` | Spring Batch skippable exceptions |
 | `filterCount` | processor returned `null` |
-| `rejectedSample` | first 10 persisted audit rows |
 | `totalRejectedRows` | all audit rows for the job |
 
 Read failures can increase `skipCount` without increasing `readCount`.

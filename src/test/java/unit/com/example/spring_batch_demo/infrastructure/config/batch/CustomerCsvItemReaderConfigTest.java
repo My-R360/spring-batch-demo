@@ -1,4 +1,4 @@
-package com.example.spring_batch_demo.infrastructure.batch.config;
+package com.example.spring_batch_demo.infrastructure.config.batch;
 
 import java.nio.file.Files;
 import java.nio.file.Path;

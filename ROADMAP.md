@@ -76,7 +76,7 @@ Phase 1 (async API + batch fault tolerance) ✅
 | `SkipListener` + `ItemProcessListener` to capture skips/rejects + reasons | ✅ | `CustomerImportAuditStepListener` |
 | Domain audit model (`RejectedRow`, `ImportRejectionCategory`) + application `ImportAuditReport` | ✅ | `domain.importaudit`, `application.customer.dto` |
 | Application port `ImportAuditPort` + `JdbcImportAuditPortAdapter` | ✅ | Oracle table `IMPORT_REJECTED_ROW` in `schema.sql` |
-| Extend status + `GET .../report` with audit summary | ✅ | `filterCount`, `rejectedSample`, paginated report |
+| Extend status + `GET .../report` with audit summary | ✅ | `filterCount`, paginated report |
 | RUNBOOK / SD-DESIGN / SD-ARCHITECTURE updates | ✅ | |
 
 ---
