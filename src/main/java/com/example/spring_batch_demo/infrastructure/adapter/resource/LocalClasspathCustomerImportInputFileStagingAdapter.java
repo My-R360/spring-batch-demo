@@ -8,7 +8,7 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 import com.example.spring_batch_demo.application.customer.CustomerImportInputFile;
-import com.example.spring_batch_demo.application.customer.exceptions.InvalidInputFileResourceException;
+import com.example.spring_batch_demo.application.customer.exceptions.InputFileStagingException;
 import com.example.spring_batch_demo.application.customer.port.CustomerImportInputFileStagingPort;
 import com.example.spring_batch_demo.infrastructure.config.CustomerImportLocalStagingProperties;
 import lombok.extern.slf4j.Slf4j;
@@ -64,14 +64,14 @@ public class LocalClasspathCustomerImportInputFileStagingAdapter implements Cust
         String stagedFileName = buildStagedFileName(importId, sourceFile.getFileName());
         Path stagedFile = stagingDirectory.resolve(stagedFileName).normalize();
         if (!stagedFile.startsWith(stagingDirectory)) {
-            throw new InvalidInputFileResourceException("Invalid staged file path for input file: " + location);
+            throw new InputFileStagingException("Invalid staged file path for input file: " + location);
         }
 
         try {
             Files.createDirectories(stagingDirectory);
             Files.copy(sourceFile, stagedFile, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException ex) {
-            throw new InvalidInputFileResourceException(
+            throw new InputFileStagingException(
                     "Unable to stage input file locally for import: " + location, ex);
         }
 
@@ -137,11 +137,11 @@ public class LocalClasspathCustomerImportInputFileStagingAdapter implements Cust
         try {
             available = resource.exists() && resource.isReadable();
         } catch (RuntimeException ex) {
-            throw new InvalidInputFileResourceException(
+            throw new InputFileStagingException(
                     "Unable to resolve staged input file from the runtime classpath: " + stagedLocation, ex);
         }
         if (!available) {
-            throw new InvalidInputFileResourceException(
+            throw new InputFileStagingException(
                     "Staged input file is not readable from the runtime classpath: " + stagedLocation
                             + ". Check app.customer-import.local-staging.classpath-directory.");
         }
