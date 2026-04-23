@@ -2,6 +2,10 @@ package com.example.spring_batch_demo.application.customer.port;
 
 /**
  * Prepares a customer import input file for durable hand-off to the batch launcher.
+ *
+ * <p>The returned location must be readable by the process that eventually launches the
+ * Spring Batch job. Local development can use a same-machine classpath copy; distributed
+ * deployments should use shared storage or another consumer-visible resource location.</p>
  */
 public interface CustomerImportInputFileStagingPort {
 

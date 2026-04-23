@@ -92,9 +92,9 @@ public class CustomerImportRabbitConfig {
             CustomerImportMessagingProperties properties
     ) {
         ExponentialBackOffPolicy backOffPolicy = new ExponentialBackOffPolicy();
-        backOffPolicy.setInitialInterval((int) Math.min(Integer.MAX_VALUE, properties.getRetryInitialIntervalMs()));
+        backOffPolicy.setInitialInterval(properties.getRetryInitialIntervalMs());
         backOffPolicy.setMultiplier(properties.getRetryMultiplier());
-        backOffPolicy.setMaxInterval((int) Math.min(Integer.MAX_VALUE, properties.getRetryMaxIntervalMs()));
+        backOffPolicy.setMaxInterval(properties.getRetryMaxIntervalMs());
         MessageRecoverer recoverer = new RejectAndDontRequeueRecoverer();
         return RetryInterceptorBuilder.stateless()
                 .maxAttempts(properties.getRetryMaxAttempts())

@@ -8,6 +8,7 @@ import com.example.spring_batch_demo.application.customer.dto.CustomerImportResu
 import com.example.spring_batch_demo.application.customer.dto.ImportAuditReport;
 import com.example.spring_batch_demo.application.customer.exceptions.ImportCommandPublishException;
 import com.example.spring_batch_demo.application.customer.exceptions.ImportJobLaunchException;
+import com.example.spring_batch_demo.application.customer.exceptions.InputFileStagingException;
 import com.example.spring_batch_demo.application.customer.exceptions.InvalidInputFileResourceException;
 import com.example.spring_batch_demo.application.customer.port.CustomerImportCommandPublisher;
 import com.example.spring_batch_demo.application.customer.port.CustomerImportInputFileValidator;
@@ -120,6 +121,17 @@ class BatchJobControllerWebMvcIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Invalid input file"))
                 .andExpect(jsonPath("$.detail").value("Input file resource does not exist: file:/missing.csv"));
+    }
+
+    @Test
+    void postImportReturnsServerErrorWhenInputFileStagingFails() throws Exception {
+        when(customerImportCommandPublisher.publish(any()))
+                .thenThrow(new InputFileStagingException("Unable to stage input file locally for import: file:/data/customers.csv"));
+
+        mockMvc.perform(post("/api/batch/customer/import").param("inputFile", "file:/data/customers.csv"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.title").value("Input file staging failed"))
+                .andExpect(jsonPath("$.detail").value("Unable to stage input file locally for import: file:/data/customers.csv"));
     }
 
     @Test
