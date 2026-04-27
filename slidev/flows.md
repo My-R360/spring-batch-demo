@@ -218,7 +218,6 @@ actor Client
 participant C as BatchJobController.getImportStatus
 participant UC as SpringBatchCustomerImportUseCase
 participant JE as JobExplorer
-participant Audit as ImportAuditPort
 
 Client->>C: GET /customer/import/{id}/status
 C->>UC: getImportStatus(id)
@@ -230,8 +229,6 @@ alt not found
 else found
   JE-->>UC: JobExecution
   UC->>UC: resolve failures + aggregate counts
-  UC->>Audit: loadRows(id, 10, 0)
-  Audit-->>UC: rejectedSample
   UC-->>C: CustomerImportResult
   C-->>Client: 200 or 500
 end

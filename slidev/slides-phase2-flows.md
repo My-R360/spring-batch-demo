@@ -157,8 +157,6 @@ alt missing
 else found
   UC->>UC: aggregate step counts
   UC->>UC: resolve persisted failure messages
-  UC->>Audit: loadRows(id, 10, 0)
-  Audit-->>UC: rejectedSample
   UC-->>API: CustomerImportResult
   API-->>Client: 200 or 500
 end

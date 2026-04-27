@@ -9,7 +9,7 @@ This document explains key design choices and where they appear in the current o
 - `BatchJobController` handles HTTP request/response and delegates work.
   - `src/main/java/com/example/spring_batch_demo/presentation/api/BatchJobController.java`
 - `CustomerCsvItemReaderConfig` builds and configures the CSV reader bean (`@StepScope`).
-  - `src/main/java/com/example/spring_batch_demo/infrastructure/batch/config/CustomerCsvItemReaderConfig.java`
+  - `src/main/java/com/example/spring_batch_demo/infrastructure/config/batch/CustomerCsvItemReaderConfig.java`
 - `CustomerItemProcessorAdapter` only bridges Batch processor SPI to domain policy.
   - `src/main/java/com/example/spring_batch_demo/infrastructure/adapter/batch/CustomerItemProcessorAdapter.java`
 - `EmailAndNameCustomerImportPolicy` contains business rule logic (email validity + uppercase name).
@@ -77,7 +77,7 @@ This document explains key design choices and where they appear in the current o
 - The use-case interface is split into `launchImport` (fire-and-forget, returns `jobExecutionId`) and `getImportStatus` (reads progress via `JobExplorer`).
 - The controller returns **202 Accepted** on POST and exposes a GET status endpoint.
 - **GET status / GET report HTTP semantics**: **404** if the execution id is unknown; **500** when batch `status` is `FAILED` (response body remains `CustomerImportResult` or `ImportAuditReport`); **200** for `STARTED` / `COMPLETED` / etc., including `COMPLETED` with a non-empty `failures` list on status when the job exited successfully but logged warnings.
-- `getImportStatus` builds `failures` from persisted **exit descriptions** on the job and on any `FAILED` steps (`JobExecution#getAllFailureExceptions()` is not reloaded from the database when using `JobExplorer`). It also aggregates `filterCount` and loads a small `rejectedSample` from `ImportAuditPort`.
+- `getImportStatus` builds `failures` from persisted **exit descriptions** on the job and on any `FAILED` steps (`JobExecution#getAllFailureExceptions()` is not reloaded from the database when using `JobExplorer`). It also aggregates `filterCount`; detailed rejected rows are read through `getImportAuditReport`.
 - `GET .../report` returns `ImportAuditReport` (job status, total rejected count, paginated `RejectedRow` list) with the same **404** / **500-on-FAILED** HTTP mapping as status polling.
 
 ### Messaging boundary (Phase 3)

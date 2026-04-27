@@ -29,7 +29,7 @@ Use this checklist for feature/refactor tasks:
 2. For **non-trivial** edits (multi-file, layer boundaries, ports/adapters, batch wiring), prefer **code-review-graph** (MCP/CLI) for impact before broad plans or wide reads (`.cursor/rules/code-review-graph.mdc`).
 3. Keep controller thin; delegate to an application use-case.
 4. Put business rules in domain policy/service (framework-free).
-5. Keep Spring Batch/JDBC/Oracle logic in infrastructure adapters/config (`infrastructure.adapter.*` for beans that implement ports or bridge Batch SPI; `infrastructure.batch.config` for `@Configuration` job/step/reader wiring).
+5. Keep Spring Batch/JDBC/Oracle logic in infrastructure adapters/config (`infrastructure.adapter.*` for beans that implement ports or bridge Batch SPI; `infrastructure.config.batch` for `@Configuration` job/step/reader wiring).
 6. Presentation API errors: use `presentation.api.exceptions` (e.g. `@RestControllerAdvice` scoped to batch controllers) mapping **application** exception types from `application.*.exceptions` to `ProblemDetail`—avoid fat controllers.
 7. Application contracts: ports under `application.*.port`; DTOs like `CustomerImportResult` under `application.customer.dto`; use-case exceptions under `application.customer.exceptions` (or other `application.<feature>.exceptions`); domain policies under `domain.*.policy`.
 8. Use **explicit Java imports only**—no star imports (`.cursor/rules/java-imports.mdc`).
@@ -38,7 +38,7 @@ Use this checklist for feature/refactor tasks:
 11. Build and verify:
    - `./mvnw clean package -DskipTests`
 12. Update docs + append `PROMPTS.md` entry.
-13. If `slidev/` is present: refresh `slidev/slides.md` (narrative + Mermaid) for the same behavior change; run `cd slidev && npx slidev build slides.md`.
+13. If `slidev/` is present: refresh the relevant deck sources (`deck-onion.md`, `deck-phase1.md`, `deck-phase2.md`, `deck-phase3.md`, `deck-overall-flows.md`, plus any legacy/reference decks that describe the same flow); run `cd slidev && npm run build:all`.
 
 ## Debug workflow
 
@@ -56,4 +56,3 @@ When import fails:
 - Mention affected files and why.
 - Include verification command(s).
 - If behavior changed, update runbook/docs.
-

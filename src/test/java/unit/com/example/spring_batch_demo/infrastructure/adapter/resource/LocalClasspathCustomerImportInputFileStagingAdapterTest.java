@@ -4,6 +4,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.UUID;
 
+import com.example.spring_batch_demo.application.customer.exceptions.InputFileStagingException;
 import com.example.spring_batch_demo.application.customer.exceptions.InvalidInputFileResourceException;
 import com.example.spring_batch_demo.infrastructure.config.CustomerImportLocalStagingProperties;
 import org.junit.jupiter.api.Test;
@@ -23,6 +24,15 @@ class LocalClasspathCustomerImportInputFileStagingAdapterTest {
         String staged = stager.stageForImport("classpath:customers.csv", "import-1");
 
         assertEquals("classpath:customers.csv", staged);
+    }
+
+    @Test
+    void leavesNonLocalResourceUnchangedForSharedStorage() {
+        LocalClasspathCustomerImportInputFileStagingAdapter stager = newStager();
+
+        String staged = stager.stageForImport("s3://customer-imports/customers.csv", "import-1");
+
+        assertEquals("s3://customer-imports/customers.csv", staged);
     }
 
     @Test
@@ -64,6 +74,21 @@ class LocalClasspathCustomerImportInputFileStagingAdapterTest {
         assertThrows(
                 InvalidInputFileResourceException.class,
                 () -> stager.stageForImport("file:" + tempDir.resolve("missing.csv").toAbsolutePath(), "import-3")
+        );
+    }
+
+    @Test
+    void reportsStagingDirectoryFailuresAsServerSideStagingErrors(@TempDir Path tempDir) throws Exception {
+        Path source = tempDir.resolve("customers.csv");
+        Files.writeString(source, "3,Carol,carol@example.com\n");
+        Path stagingDirectory = tempDir.resolve("not-a-directory");
+        Files.writeString(stagingDirectory, "already a file\n");
+        LocalClasspathCustomerImportInputFileStagingAdapter stager =
+                newStager(stagingDirectory, "customer-imports-test/" + UUID.randomUUID());
+
+        assertThrows(
+                InputFileStagingException.class,
+                () -> stager.stageForImport("file:" + source.toAbsolutePath(), "import-4")
         );
     }
 

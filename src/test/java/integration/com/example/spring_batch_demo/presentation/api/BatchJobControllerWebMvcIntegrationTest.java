@@ -8,6 +8,7 @@ import com.example.spring_batch_demo.application.customer.dto.CustomerImportResu
 import com.example.spring_batch_demo.application.customer.dto.ImportAuditReport;
 import com.example.spring_batch_demo.application.customer.exceptions.ImportCommandPublishException;
 import com.example.spring_batch_demo.application.customer.exceptions.ImportJobLaunchException;
+import com.example.spring_batch_demo.application.customer.exceptions.InputFileStagingException;
 import com.example.spring_batch_demo.application.customer.exceptions.InvalidInputFileResourceException;
 import com.example.spring_batch_demo.application.customer.port.CustomerImportCommandPublisher;
 import com.example.spring_batch_demo.application.customer.port.CustomerImportInputFileValidator;
@@ -123,6 +124,17 @@ class BatchJobControllerWebMvcIntegrationTest {
     }
 
     @Test
+    void postImportReturnsServerErrorWhenInputFileStagingFails() throws Exception {
+        when(customerImportCommandPublisher.publish(any()))
+                .thenThrow(new InputFileStagingException("Unable to stage input file locally for import: file:/data/customers.csv"));
+
+        mockMvc.perform(post("/api/batch/customer/import").param("inputFile", "file:/data/customers.csv"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.title").value("Input file staging failed"))
+                .andExpect(jsonPath("$.detail").value("Unable to stage input file locally for import: file:/data/customers.csv"));
+    }
+
+    @Test
     void getJobByCorrelationReturnsOk() throws Exception {
         when(importLaunchCorrelationPort.findJobExecutionId(eq("550e8400-e29b-41d4-a716-446655440010")))
                 .thenReturn(OptionalLong.of(99L));
@@ -151,7 +163,7 @@ class BatchJobControllerWebMvcIntegrationTest {
     @Test
     void getStatusReturnsCompletedResult() throws Exception {
         when(useCase.getImportStatus(33L))
-                .thenReturn(new CustomerImportResult(33L, "COMPLETED", List.of(), 10L, 8L, 2L, 1L, List.of()));
+                .thenReturn(new CustomerImportResult(33L, "COMPLETED", List.of(), 10L, 8L, 2L, 1L));
 
         mockMvc.perform(get("/api/batch/customer/import/33/status"))
                 .andExpect(status().isOk())
@@ -160,7 +172,8 @@ class BatchJobControllerWebMvcIntegrationTest {
                 .andExpect(jsonPath("$.readCount").value(10))
                 .andExpect(jsonPath("$.writeCount").value(8))
                 .andExpect(jsonPath("$.skipCount").value(2))
-                .andExpect(jsonPath("$.filterCount").value(1));
+                .andExpect(jsonPath("$.filterCount").value(1))
+                .andExpect(jsonPath("$.rejectedSample").doesNotExist());
     }
 
     @Test
@@ -174,7 +187,7 @@ class BatchJobControllerWebMvcIntegrationTest {
     @Test
     void getStatusReturnsInProgressJob() throws Exception {
         when(useCase.getImportStatus(50L))
-                .thenReturn(new CustomerImportResult(50L, "STARTED", List.of(), 5L, 3L, 0L, 0L, List.of()));
+                .thenReturn(new CustomerImportResult(50L, "STARTED", List.of(), 5L, 3L, 0L, 0L));
 
         mockMvc.perform(get("/api/batch/customer/import/50/status"))
                 .andExpect(status().isOk())
@@ -185,7 +198,7 @@ class BatchJobControllerWebMvcIntegrationTest {
     @Test
     void getStatusReturnsInternalServerErrorWhenFailed() throws Exception {
         when(useCase.getImportStatus(70L))
-                .thenReturn(new CustomerImportResult(70L, "FAILED", List.of("boom"), 0L, 0L, 0L, 0L, List.of()));
+                .thenReturn(new CustomerImportResult(70L, "FAILED", List.of("boom"), 0L, 0L, 0L, 0L));
 
         mockMvc.perform(get("/api/batch/customer/import/70/status"))
                 .andExpect(status().isInternalServerError())

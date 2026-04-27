@@ -4,6 +4,7 @@ import java.net.URI;
 
 import com.example.spring_batch_demo.application.customer.exceptions.ImportCommandPublishException;
 import com.example.spring_batch_demo.application.customer.exceptions.ImportJobLaunchException;
+import com.example.spring_batch_demo.application.customer.exceptions.InputFileStagingException;
 import com.example.spring_batch_demo.application.customer.exceptions.InvalidCorrelationIdException;
 import com.example.spring_batch_demo.application.customer.exceptions.InvalidInputFileResourceException;
 import com.example.spring_batch_demo.application.customer.exceptions.MissingInputFileException;
@@ -42,6 +43,17 @@ public class BatchJobApiExceptionHandler {
                 ex.getMessage() != null ? ex.getMessage() : "inputFile resource does not exist or is not readable"
         );
         detail.setTitle("Invalid input file");
+        detail.setType(URI.create("about:blank"));
+        return detail;
+    }
+
+    @ExceptionHandler(InputFileStagingException.class)
+    public ProblemDetail onInputFileStagingFailed(InputFileStagingException ex) {
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                ex.getMessage() != null ? ex.getMessage() : "Input file could not be staged for import"
+        );
+        detail.setTitle("Input file staging failed");
         detail.setType(URI.create("about:blank"));
         return detail;
     }

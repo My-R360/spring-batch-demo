@@ -68,7 +68,7 @@ Import a file from your machine:
 curl -X POST "http://localhost:8080/api/batch/customer/import?inputFile=file:/Users/shubham.s/customers.csv"
 ```
 
-The `file:` path must be absolute and readable by the running app process. For local development, external local files are copied to `target/classes/customer-imports/` and the import command/job uses a staged `classpath:customer-imports/...` location. RabbitMQ still carries only a location string, not the CSV bytes.
+The `file:` path must be absolute and readable by the running app process. For local development, external local files are copied to `target/classes/customer-imports/` and the import command/job uses a staged `classpath:customer-imports/...` location. RabbitMQ still carries only a location string, not the CSV bytes. This staging approach is intentionally same-machine only; a distributed deployment needs a shared location adapter such as S3 or a shared volume.
 
 ### 4) Poll job status
 
@@ -76,7 +76,7 @@ Use the `jobExecutionId` from the correlation resolution step (or directly from 
 
 ```bash
 curl "http://localhost:8080/api/batch/customer/import/1/status"
-# → 200  {"jobExecutionId":1,"status":"COMPLETED","failures":[],"readCount":6,"writeCount":5,"skipCount":0,"filterCount":0,"rejectedSample":[]}
+# → 200  {"jobExecutionId":1,"status":"COMPLETED","failures":[],"readCount":6,"writeCount":5,"skipCount":0,"filterCount":0}
 ```
 
 While the job is running, `status` will be `STARTED`. When done, it will be `COMPLETED` or `FAILED`. If the job **failed**, the same JSON shape is returned with **HTTP 500** so monitors can alert while scripts still read `failures` and counts.
@@ -96,15 +96,14 @@ While the job is running, `status` will be `STARTED`. When done, it will be `COM
   - `.../domain/customer/Customer.java`
   - `.../domain/importaudit/` (`RejectedRow`, `ImportRejectionCategory`)
   - `.../domain/customer/policy/CustomerImportPolicy.java`, `.../domain/customer/policy/EmailAndNameCustomerImportPolicy.java`
-  - `.../domain/validation/package-info.java` (placeholder for cross-cutting validation)
-- **Common (JDK-only helpers)**:
-  - `.../common/package-info.java`
 - **Infrastructure**:
-  - **Batch wiring (`@Configuration`)**: `.../infrastructure/batch/config/CustomerImportJobConfig.java` (job + fault-tolerant step), `CustomerCsvItemReaderConfig.java`, `CustomerImportAuditListenerConfig.java`
+  - **Batch wiring (`@Configuration`)**: `.../infrastructure/config/batch/CustomerImportJobConfig.java` (job + fault-tolerant step), `CustomerCsvItemReaderConfig.java`, `CustomerImportAuditListenerConfig.java`
   - **Adapters (implementations)**: `.../infrastructure/adapter/batch/` — use-case impl, processor/writer adapters, `JobCompletionListener`, `CustomerImportAuditStepListener`; `.../infrastructure/adapter/persistence/OracleCustomerUpsertPortAdapter.java` (Oracle MERGE), `JdbcImportAuditPortAdapter.java`; `.../infrastructure/adapter/resource/` (Spring `Resource` validation/resolution + local classpath staging)
   - **Other config**: `.../infrastructure/config/AsyncJobLauncherConfig.java`, `JdbcConfig`, `DomainPolicyConfig`, `.../infrastructure/config/messaging/` (RabbitMQ topology + listener factory when enabled)
   - **Messaging adapters**: `.../infrastructure/adapter/messaging/` (AMQP publisher, direct publisher, listener)
   - **Dev DB diagnostics**: `.../infrastructure/diagnostics/DevStartupDiagnostics.java`
+- **Utilities**:
+  - no top-level `common` package yet; helpers should stay in the narrowest owning package/layer until a real shared abstraction appears
 - **Schema init**: `src/main/resources/schema.sql`
 - **Sample CSVs**: `customers.csv`, `customers-01.csv` … `customers-04.csv`, `customers-phase2-audit-sample.csv`, `customers-import-audit-sample.csv` (integration / audit demos) under `src/main/resources/`
 
@@ -136,7 +135,7 @@ Key test-infrastructure files:
 
 HTTP POST → 202 Accepted (async) → Presentation Controller → Application UseCase → Infrastructure (Async JobLauncher) → Job → Fault-Tolerant Step (retry + skip) → Reader → Processor → Writer → Oracle.
 
-Poll: GET status → Application UseCase → JobExplorer → progress counts + `filterCount` + `rejectedSample`; GET report → paginated `IMPORT_REJECTED_ROW` audit.
+Poll: GET status → Application UseCase → JobExplorer → progress counts + `filterCount`; GET report → paginated `IMPORT_REJECTED_ROW` audit.
 
 ## Architecture & design docs
 

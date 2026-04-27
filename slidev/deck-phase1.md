@@ -295,12 +295,11 @@ Status uses metadata, not `CUSTOMER`, to determine job progress.
   "readCount": 1000,
   "writeCount": 980,
   "skipCount": 3,
-  "filterCount": 17,
-  "rejectedSample": []
+  "filterCount": 17
 }
 ```
 
-In Phase 1, `rejectedSample` is not the main feature. It exists in the current DTO because Phase 2 added audit data.
+Phase 1 status stays focused on counters and failures. Later phases keep row-level audit in the separate `GET .../report` endpoint.
 
 ---
 
@@ -331,8 +330,7 @@ Even when the HTTP status is `500`, the body keeps operational details:
   "readCount": 50,
   "writeCount": 40,
   "skipCount": 101,
-  "filterCount": 5,
-  "rejectedSample": []
+  "filterCount": 5
 }
 ```
 

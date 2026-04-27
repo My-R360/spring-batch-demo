@@ -35,18 +35,18 @@ Skim these before presenting:
 | Topic | Path |
 |--------|------|
 | HTTP API | `src/main/java/.../presentation/api/BatchJobController.java` |
-| Use-case port + result | `src/main/java/.../application/customer/CustomerImportUseCase.java`, `CustomerImportResult.java` |
-| Batch orchestration | `src/main/java/.../infrastructure/batch/SpringBatchCustomerImportUseCase.java` |
-| Job / step / fault tolerance | `src/main/java/.../infrastructure/batch/CustomerImportJobConfig.java` |
-| Processor → domain | `src/main/java/.../infrastructure/batch/CustomerItemProcessorAdapter.java`, `domain/customer/EmailAndNameCustomerImportPolicy.java` |
-| Oracle upsert | `src/main/java/.../infrastructure/persistence/OracleCustomerUpsertPortAdapter.java` |
+| Use-case port + result | `src/main/java/.../application/customer/port/CustomerImportUseCase.java`, `CustomerImportResult.java` |
+| Batch orchestration | `src/main/java/.../infrastructure/adapter/batch/SpringBatchCustomerImportUseCase.java` |
+| Job / step / fault tolerance | `src/main/java/.../infrastructure/config/batch/CustomerImportJobConfig.java` |
+| Processor → domain | `src/main/java/.../infrastructure/adapter/batch/CustomerItemProcessorAdapter.java`, `domain/customer/policy/EmailAndNameCustomerImportPolicy.java` |
+| Oracle upsert | `src/main/java/.../infrastructure/adapter/persistence/OracleCustomerUpsertPortAdapter.java` |
 | Async launcher | `src/main/java/.../infrastructure/config/AsyncJobLauncherConfig.java` |
-| Listener logs | `src/main/java/.../infrastructure/batch/JobCompletionListener.java` |
+| Listener logs | `src/main/java/.../infrastructure/adapter/batch/JobCompletionListener.java` |
 | Tests | `src/test/java/unit/...`, `src/test/java/integration/...` |
 
 ---
 
-## Phase 2 deck (`slides-phase2.md`)
+## Phase 2 deck (`deck-phase2.md`)
 
 Use when the audience already knows Phase 1 (or after `slides.md` in a longer session).
 
@@ -58,7 +58,7 @@ Use when the audience already knows Phase 1 (or after `slides.md` in a longer se
 |--------|------|
 | Audit listener | `.../infrastructure/adapter/batch/CustomerImportAuditStepListener.java` |
 | Audit port + JDBC | `.../application/customer/port/ImportAuditPort.java`, `.../JdbcImportAuditPortAdapter.java` |
-| Step wiring (listeners) | `.../infrastructure/batch/config/CustomerImportJobConfig.java`, `CustomerImportAuditListenerConfig.java` |
+| Step wiring (listeners) | `.../infrastructure/config/batch/CustomerImportJobConfig.java`, `CustomerImportAuditListenerConfig.java` |
 | DTOs | `ImportAuditReport.java`, extended `CustomerImportResult.java` |
 | Domain audit types | `domain/importaudit/` |
 | H2 smoke profile | `application-audit-it.properties`, `NoOpCustomerUpsertPortAdapter.java` |

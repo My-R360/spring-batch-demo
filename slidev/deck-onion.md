@@ -266,7 +266,7 @@ timeline
           : Spring Batch reads, processes, writes
           : CUSTOMER and BATCH_* tables prove execution
   Phase 2 : Audit listener records rejected rows
-          : Status includes rejectedSample
+          : Status keeps counts and filterCount
           : Report endpoint pages IMPORT_REJECTED_ROW
   Phase 3 : RabbitMQ accepts commands durably
           : Listener launches batch asynchronously
@@ -357,7 +357,7 @@ If a class imports `org.springframework.batch`, `org.springframework.jdbc`, or `
 | Command publisher port | `application/customer/port/CustomerImportCommandPublisher.java` |
 | Domain policy | `domain/customer/policy/EmailAndNameCustomerImportPolicy.java` |
 | Spring Batch adapter | `infrastructure/adapter/batch/SpringBatchCustomerImportUseCase.java` |
-| Job/step wiring | `infrastructure/batch/config/CustomerImportJobConfig.java` |
+| Job/step wiring | `infrastructure/config/batch/CustomerImportJobConfig.java` |
 | RabbitMQ topology | `infrastructure/config/messaging/CustomerImportRabbitConfig.java` |
 | DB schema | `src/main/resources/schema.sql` |
 
@@ -373,4 +373,3 @@ It is a chain of adapters around stable application ports:
 2. Application ports describe import, status, report, publish, audit, and correlation behavior.
 3. Infrastructure launches Spring Batch, reads CSV, writes Oracle/H2, records audit, and handles RabbitMQ.
 4. Domain policy makes the row-level business decision.
-

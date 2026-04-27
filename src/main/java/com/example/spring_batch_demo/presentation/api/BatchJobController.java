@@ -94,8 +94,8 @@ public class BatchJobController {
      * keep counters and {@code failures}); {@code 200} for all other known states including
      * {@code COMPLETED} with a non-empty {@code failures} list (warnings vs hard failure).</p>
      *
-     * <p>Also includes {@code filterCount} (policy-filtered rows) and a small {@code rejectedSample}
-     * from persisted audit rows; use {@code GET .../report} for the full paginated list.</p>
+     * <p>Also includes {@code filterCount} (policy-filtered rows); use {@code GET .../report}
+     * for persisted per-row audit details.</p>
      */
     @GetMapping("/customer/import/{jobExecutionId}/status")
     public ResponseEntity<CustomerImportResult> getImportStatus(
