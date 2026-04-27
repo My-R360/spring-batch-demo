@@ -1,4 +1,4 @@
-package com.example.spring_batch_demo.infrastructure.batch.config;
+package com.example.spring_batch_demo.infrastructure.config.batch;
 
 import com.example.spring_batch_demo.domain.customer.Customer;
 import com.example.spring_batch_demo.infrastructure.adapter.batch.CustomerImportAuditStepListener;

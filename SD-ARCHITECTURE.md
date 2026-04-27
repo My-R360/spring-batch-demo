@@ -31,7 +31,7 @@ Dependency rule:
 
 **DTOs on use-case contracts:** Types such as `CustomerImportResult` live in **`application.customer.dto`** as the **return shape** of `CustomerImportUseCase` (under **`application.customer.port`**). Infrastructure adapters (e.g. `SpringBatchCustomerImportUseCase`) **construct** those records — still an inward dependency (infra → application API), not application “calling down” into infra.
 
-They are **not** domain models: they carry **job / polling** concerns (`BatchStatus`, read/skip/write/filter counters, optional `rejectedSample`). **`Customer`** stays in **domain** as the business row shape. Row-level audit values (`RejectedRow`, `ImportRejectionCategory`) live in **`domain.importaudit`** and are persisted through **`ImportAuditPort`** (application) implemented by JDBC in infrastructure.
+They are **not** domain models: they carry **job / polling** concerns (`BatchStatus`, read/skip/write/filter counters). **`Customer`** stays in **domain** as the business row shape. Row-level audit values (`RejectedRow`, `ImportRejectionCategory`) live in **`domain.importaudit`** and are persisted through **`ImportAuditPort`** (application) implemented by JDBC in infrastructure.
 
 ## Current code mapping (as-is)
 
@@ -48,13 +48,13 @@ Today, the project is functional and has been refactored into onion-style layers
   - `domain/customer/Customer.java`
   - `domain/customer/policy/CustomerImportPolicy.java`, `EmailAndNameCustomerImportPolicy.java`
   - `domain/importaudit/` (`ImportRejectionCategory`, `RejectedRow`)
-  - `domain/validation/package-info.java` (cross-cutting validation placeholder)
-- Common: `common/package-info.java` (JDK-only shared helpers)
 - Infrastructure:
-  - **Batch `@Configuration`**: `infrastructure/batch/config/CustomerImportJobConfig.java`, `CustomerCsvItemReaderConfig.java`, `CustomerImportAuditListenerConfig.java`
+  - **Batch `@Configuration`**: `infrastructure/config/batch/CustomerImportJobConfig.java`, `CustomerCsvItemReaderConfig.java`, `CustomerImportAuditListenerConfig.java`
   - **Adapters**: `infrastructure/adapter/batch/` — `SpringBatchCustomerImportUseCase`, processor/writer adapters, `JobCompletionListener`, `CustomerImportAuditStepListener`; `infrastructure/adapter/persistence/OracleCustomerUpsertPortAdapter.java` (active when profile is not `audit-it` / `amqp-it`), `NoOpCustomerUpsertPortAdapter.java` (`audit-it` / `amqp-it` H2 smoke), `JdbcImportAuditPortAdapter.java`, `JdbcImportLaunchCorrelationAdapter.java`; `infrastructure/adapter/messaging/` — `AmqpCustomerImportCommandPublisher`, `DirectCustomerImportCommandPublisher`, `CustomerImportJobLaunchListener`; `infrastructure/adapter/resource/` — Spring `Resource` validation/resolution and local classpath staging for `inputFile`
   - **Config**: `infrastructure/config/` — `AsyncJobLauncherConfig`, `JdbcConfig`, `DomainPolicyConfig`, `CustomerImportLocalStagingProperties`, `messaging/CustomerImportRabbitConfig.java`, `messaging/MessagingConfigurationBeans.java`, `messaging/CustomerImportMessagingProperties.java`
   - **Diagnostics**: `infrastructure/diagnostics/DevStartupDiagnostics.java`
+- Utilities:
+  - none at the root package yet; add helpers in the narrowest owning layer/package first, and introduce a shared package only when the abstraction is genuinely cross-layer
 
 ## Target package structure (approved direction)
 
@@ -64,8 +64,6 @@ This is the proposed target structure for refactor (keeping root package):
 com.example.spring_batch_demo
 ├── SpringBatchDemoApplication.java
 │
-├── common
-│   └── package-info.java (optional utilities)
 ├── domain
 │   ├── customer
 │   │   ├── Customer.java
@@ -75,8 +73,6 @@ com.example.spring_batch_demo
 │   ├── importaudit
 │   │   ├── ImportRejectionCategory.java
 │   │   └── RejectedRow.java
-│   └── validation
-│       └── package-info.java
 ├── application
 │   └── customer
 │       ├── dto
@@ -93,12 +89,9 @@ com.example.spring_batch_demo
 │       └── exceptions
 │           ├── InvalidInputFileResourceException.java
 │           ├── ImportJobLaunchException.java
+│           ├── InputFileStagingException.java
 │           └── MissingInputFileException.java
 ├── infrastructure
-│   ├── batch
-│   │   └── config
-│   │       ├── CustomerImportJobConfig.java
-│   │       └── CustomerCsvItemReaderConfig.java
 │   ├── adapter
 │   │   ├── batch
 │   │   │   ├── SpringBatchCustomerImportUseCase.java
@@ -115,9 +108,17 @@ com.example.spring_batch_demo
 │   │       └── SpringResourceCustomerImportInputFileValidator.java
 │   ├── config
 │   │   ├── AsyncJobLauncherConfig.java
+│   │   ├── batch
+│   │   │   ├── CustomerImportJobConfig.java
+│   │   │   ├── CustomerCsvItemReaderConfig.java
+│   │   │   └── CustomerImportAuditListenerConfig.java
 │   │   ├── CustomerImportLocalStagingProperties.java
 │   │   ├── JdbcConfig.java
-│   │   └── DomainPolicyConfig.java
+│   │   ├── DomainPolicyConfig.java
+│   │   └── messaging
+│   │       ├── CustomerImportRabbitConfig.java
+│   │       ├── MessagingConfigurationBeans.java
+│   │       └── CustomerImportMessagingProperties.java
 │   └── diagnostics
 │       └── DevStartupDiagnostics.java
 └── presentation
@@ -128,7 +129,7 @@ com.example.spring_batch_demo
 ```
 
 Notes:
-- Spring Batch **wiring** (`Job`/`Step` builders, `@StepScope` reader bean) lives under **`infrastructure.batch.config`**.
+- Spring Batch **wiring** (`Job`/`Step` builders, `@StepScope` reader bean) lives under **`infrastructure.config.batch`**.
 - Spring Batch **SPI adapters** and the async use-case implementation live under **`infrastructure.adapter.batch`**.
 - Oracle/JDBC port implementation lives under **`infrastructure.adapter.persistence`**.
 - Spring `Resource` validation/resolution and local classpath staging for `inputFile` live under **`infrastructure.adapter.resource`**.
@@ -159,12 +160,12 @@ Notes:
 
 ## Evolution (done vs optional next)
 
-**Already in place:** `domain` (including `domain.customer.policy`), `application` (`port` + `dto` + `customer.exceptions`), `infrastructure.adapter.*` + `infrastructure.batch.config`, `presentation.api` + `presentation.api.exceptions`, and `common` placeholder.
+**Already in place:** `domain` (including `domain.customer.policy`), `application` (`port` + `dto` + `customer.exceptions`), `infrastructure.adapter.*`, `infrastructure.config.batch`, `infrastructure.config.messaging`, and `presentation.api` + `presentation.api.exceptions`.
 
 **Optional next steps** (see `ROADMAP.md`):
 
 - `CustomerSourcePort` (abstract CSV behind a port).
-- Populate `domain.validation` or `common` when cross-cutting rules or JDK helpers appear.
+- Add utilities in the owning layer/package when duplication becomes real; avoid a root-level `common` package until there is a stable cross-layer abstraction.
 - Verify changes with `./mvnw clean verify`, Postman/curl, and Oracle queries for `CUSTOMER` and `BATCH_*`.
 
 ## Further reading (Onion Architecture)

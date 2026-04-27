@@ -163,7 +163,7 @@ class BatchJobControllerWebMvcIntegrationTest {
     @Test
     void getStatusReturnsCompletedResult() throws Exception {
         when(useCase.getImportStatus(33L))
-                .thenReturn(new CustomerImportResult(33L, "COMPLETED", List.of(), 10L, 8L, 2L, 1L, List.of()));
+                .thenReturn(new CustomerImportResult(33L, "COMPLETED", List.of(), 10L, 8L, 2L, 1L));
 
         mockMvc.perform(get("/api/batch/customer/import/33/status"))
                 .andExpect(status().isOk())
@@ -172,7 +172,8 @@ class BatchJobControllerWebMvcIntegrationTest {
                 .andExpect(jsonPath("$.readCount").value(10))
                 .andExpect(jsonPath("$.writeCount").value(8))
                 .andExpect(jsonPath("$.skipCount").value(2))
-                .andExpect(jsonPath("$.filterCount").value(1));
+                .andExpect(jsonPath("$.filterCount").value(1))
+                .andExpect(jsonPath("$.rejectedSample").doesNotExist());
     }
 
     @Test
@@ -186,7 +187,7 @@ class BatchJobControllerWebMvcIntegrationTest {
     @Test
     void getStatusReturnsInProgressJob() throws Exception {
         when(useCase.getImportStatus(50L))
-                .thenReturn(new CustomerImportResult(50L, "STARTED", List.of(), 5L, 3L, 0L, 0L, List.of()));
+                .thenReturn(new CustomerImportResult(50L, "STARTED", List.of(), 5L, 3L, 0L, 0L));
 
         mockMvc.perform(get("/api/batch/customer/import/50/status"))
                 .andExpect(status().isOk())
@@ -197,7 +198,7 @@ class BatchJobControllerWebMvcIntegrationTest {
     @Test
     void getStatusReturnsInternalServerErrorWhenFailed() throws Exception {
         when(useCase.getImportStatus(70L))
-                .thenReturn(new CustomerImportResult(70L, "FAILED", List.of("boom"), 0L, 0L, 0L, 0L, List.of()));
+                .thenReturn(new CustomerImportResult(70L, "FAILED", List.of("boom"), 0L, 0L, 0L, 0L));
 
         mockMvc.perform(get("/api/batch/customer/import/70/status"))
                 .andExpect(status().isInternalServerError())

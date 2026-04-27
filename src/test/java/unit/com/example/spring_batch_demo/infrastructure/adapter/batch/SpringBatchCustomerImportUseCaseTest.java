@@ -6,12 +6,10 @@ import com.example.spring_batch_demo.application.customer.dto.CustomerImportResu
 import com.example.spring_batch_demo.application.customer.dto.ImportAuditReport;
 import com.example.spring_batch_demo.application.customer.exceptions.ImportJobLaunchException;
 import com.example.spring_batch_demo.application.customer.exceptions.MissingInputFileException;
-import com.example.spring_batch_demo.application.customer.port.CustomerImportInputFileStagingPort;
 import com.example.spring_batch_demo.application.customer.port.CustomerImportInputFileValidator;
 import com.example.spring_batch_demo.application.customer.port.ImportAuditPort;
 import com.example.spring_batch_demo.domain.importaudit.ImportRejectionCategory;
 import com.example.spring_batch_demo.domain.importaudit.RejectedRow;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.ExitStatus;
@@ -27,8 +25,11 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -39,21 +40,14 @@ class SpringBatchCustomerImportUseCaseTest {
     private final Job job = mock(Job.class);
     private final ImportAuditPort importAuditPort = mock(ImportAuditPort.class);
     private final CustomerImportInputFileValidator inputFileValidator = mock(CustomerImportInputFileValidator.class);
-    private final CustomerImportInputFileStagingPort inputFileStagingPort = mock(CustomerImportInputFileStagingPort.class);
     private final SpringBatchCustomerImportUseCase useCase =
             new SpringBatchCustomerImportUseCase(
                     jobLauncher,
                     jobExplorer,
                     job,
                     importAuditPort,
-                    inputFileValidator,
-                    inputFileStagingPort
+                    inputFileValidator
             );
-
-    @BeforeEach
-    void stageInputFileByDefault() {
-        when(inputFileStagingPort.stageForImport(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
-    }
 
     @Test
     void launchImportRejectsNullInputFile() {
@@ -76,7 +70,6 @@ class SpringBatchCustomerImportUseCaseTest {
         Long id = useCase.launchImport("classpath:customers-01.csv");
 
         assertEquals(13L, id);
-        verify(inputFileStagingPort).stageForImport(eq("classpath:customers-01.csv"), any());
         verify(inputFileValidator).validateAvailable("classpath:customers-01.csv");
     }
 
@@ -112,7 +105,6 @@ class SpringBatchCustomerImportUseCaseTest {
         when(execution.getStatus()).thenReturn(BatchStatus.COMPLETED);
         when(execution.getExitStatus()).thenReturn(ExitStatus.COMPLETED);
         when(execution.getStepExecutions()).thenReturn(List.of(stepExecution));
-        when(importAuditPort.loadRows(50L, 10, 0)).thenReturn(List.of());
 
         CustomerImportResult result = useCase.getImportStatus(50L);
 
@@ -124,8 +116,7 @@ class SpringBatchCustomerImportUseCaseTest {
         assertEquals(18L, result.writeCount());
         assertEquals(2L, result.skipCount());
         assertEquals(1L, result.filterCount());
-        assertTrue(result.rejectedSample().isEmpty());
-        verify(importAuditPort).loadRows(50L, 10, 0);
+        verify(importAuditPort, never()).loadRows(anyLong(), anyInt(), anyInt());
     }
 
     @Test
@@ -137,7 +128,6 @@ class SpringBatchCustomerImportUseCaseTest {
         when(execution.getStatus()).thenReturn(BatchStatus.FAILED);
         when(execution.getExitStatus()).thenReturn(new ExitStatus("FAILED", "java.lang.RuntimeException: db down"));
         when(execution.getStepExecutions()).thenReturn(List.of());
-        when(importAuditPort.loadRows(60L, 10, 0)).thenReturn(List.of());
 
         CustomerImportResult result = useCase.getImportStatus(60L);
 
@@ -162,7 +152,6 @@ class SpringBatchCustomerImportUseCaseTest {
         when(execution.getStatus()).thenReturn(BatchStatus.STOPPED);
         when(execution.getExitStatus()).thenReturn(new ExitStatus("STOPPED", "operator requested stop"));
         when(execution.getStepExecutions()).thenReturn(List.of(stepExecution));
-        when(importAuditPort.loadRows(70L, 10, 0)).thenReturn(List.of());
 
         CustomerImportResult result = useCase.getImportStatus(70L);
 
@@ -186,7 +175,6 @@ class SpringBatchCustomerImportUseCaseTest {
         when(execution.getStatus()).thenReturn(BatchStatus.COMPLETED);
         when(execution.getExitStatus()).thenReturn(new ExitStatus("COMPLETED", "custom completion note"));
         when(execution.getStepExecutions()).thenReturn(List.of(stepExecution));
-        when(importAuditPort.loadRows(71L, 10, 0)).thenReturn(List.of());
 
         CustomerImportResult result = useCase.getImportStatus(71L);
 

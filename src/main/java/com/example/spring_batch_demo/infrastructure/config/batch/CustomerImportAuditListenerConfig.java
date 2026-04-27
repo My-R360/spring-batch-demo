@@ -1,4 +1,4 @@
-package com.example.spring_batch_demo.infrastructure.batch.config;
+package com.example.spring_batch_demo.infrastructure.config.batch;
 
 import com.example.spring_batch_demo.application.customer.port.ImportAuditPort;
 import com.example.spring_batch_demo.domain.customer.Customer;

@@ -123,7 +123,7 @@ Bundled Postman collection (v2.1 JSON): [`docs/postman/customer-import-api.json`
 |--------|-----|-------------|
 | `POST` | `/api/batch/customer/import?inputFile=…` | Accept import (**202**); body: `correlationId`, `status` (`QUEUED` or `STARTED`), optional `jobExecutionId`; **400** if `inputFile` is missing/blank or points at a resource the app cannot read; **503** if broker unreachable (`dev`) |
 | `GET` | `/api/batch/customer/import/by-correlation/{correlationId}/job` | Returns **`{"jobExecutionId":N}`** when the consumer has launched the job; **404** until mapped; **400** if `correlationId` is not a valid UUID |
-| `GET` | `/api/batch/customer/import/{jobExecutionId}/status` | Poll job status/progress (includes `filterCount`, `rejectedSample`) |
+| `GET` | `/api/batch/customer/import/{jobExecutionId}/status` | Poll job status/progress (includes `filterCount`) |
 | `GET` | `/api/batch/customer/import/{jobExecutionId}/report?limit=&offset=` | Paginated per-row audit from `IMPORT_REJECTED_ROW` (`PARSE_SKIP`, `READ_SKIPPED`, `PROCESS_SKIPPED`, `WRITE_SKIPPED`, `POLICY_FILTER`) |
 
 ### 5.2 Import a CSV bundled in the jar (`inputFile` required)
@@ -134,7 +134,7 @@ curl -s -X POST "http://localhost:8080/api/batch/customer/import?inputFile=class
 # audit-it / no broker → {"correlationId":"…","status":"STARTED","jobExecutionId":1}
 ```
 
-Omitting `inputFile` or sending a blank value returns **400** (`ProblemDetail`, title `Missing input file`). A non-existent or unreadable resource also returns **400** (`ProblemDetail`, title `Invalid input file`) before any RabbitMQ command is published. Read skips (`skipCount`), policy-filtered rows (`filterCount`), and optional process/write skips are reflected in status counters; persisted reasons and raw fields appear in `rejectedSample` (first rows) and in the **report** endpoint. **Audit inserts are not swallowed:** if `IMPORT_REJECTED_ROW` insert fails, the step fails (check DDL vs `schema.sql` and `INSERT` privilege).
+Omitting `inputFile` or sending a blank value returns **400** (`ProblemDetail`, title `Missing input file`). A non-existent or unreadable resource also returns **400** (`ProblemDetail`, title `Invalid input file`) before any RabbitMQ command is published. Read skips (`skipCount`), policy-filtered rows (`filterCount`), and optional process/write skips are reflected in status counters; persisted reasons and raw fields are available from the **report** endpoint. **Audit inserts are not swallowed:** if `IMPORT_REJECTED_ROW` insert fails, the step fails (check DDL vs `schema.sql` and `INSERT` privilege).
 
 **Counters vs `CUSTOMER`:** `readCount` counts successful reader items; `writeCount` is rows upserted; `skipCount` is Spring Batch read (and, when configured, process/write) skips; `filterCount` is processor returned `null` (policy filter). Rows that never become a `Customer` instance (read failure) only appear in audit when the exception is **skippable** and the skip listener runs—extend `.skip(...)` on `customerStep` if you need more exception types audited.
 
@@ -142,7 +142,7 @@ Omitting `inputFile` or sending a blank value returns **400** (`ProblemDetail`, 
 
 ```bash
 curl "http://localhost:8080/api/batch/customer/import/1/status"
-# → 200  {"jobExecutionId":1,"status":"COMPLETED","failures":[],"readCount":6,"writeCount":5,"skipCount":0,"filterCount":0,"rejectedSample":[]}
+# → 200  {"jobExecutionId":1,"status":"COMPLETED","failures":[],"readCount":6,"writeCount":5,"skipCount":0,"filterCount":0}
 
 curl "http://localhost:8080/api/batch/customer/import/1/report?limit=50&offset=0"
 # → 200  {"jobExecutionId":1,"jobStatus":"COMPLETED","totalRejectedRows":0,"rows":[]}
@@ -242,7 +242,7 @@ ORDER BY JOB_EXECUTION_ID DESC;
 1. Client calls `GET /api/batch/customer/import/{id}/status`
 2. Controller calls `CustomerImportUseCase.getImportStatus(id)`
 3. Infrastructure uses `JobExplorer` to look up the `JobExecution` and its `StepExecution` counts
-4. Returns `{status, readCount, writeCount, skipCount, filterCount, rejectedSample, failures}` and can call `getImportAuditReport` for paginated rows from `IMPORT_REJECTED_ROW`
+4. Returns `{status, readCount, writeCount, skipCount, filterCount, failures}`; use `getImportAuditReport` for paginated rows from `IMPORT_REJECTED_ROW`
 
 ### 7.4 Key code locations
 
@@ -252,7 +252,7 @@ ORDER BY JOB_EXECUTION_ID DESC;
 - Application import input / errors: `.../application/customer/CustomerImportInputFile.java`; `.../application/customer/exceptions/` (`MissingInputFileException`, `ImportJobLaunchException`, `ImportCommandPublishException`, `InvalidCorrelationIdException`)
 - Phase 3 messaging: `.../application/customer/dto/CustomerImportCommand.java`, `CustomerImportEnqueueResponse.java`; ports `CustomerImportCommandPublisher`, `ImportLaunchCorrelationPort`; infra `.../adapter/messaging/*`, `.../config/messaging/CustomerImportRabbitConfig.java`, `JdbcImportLaunchCorrelationAdapter.java`
 - Domain policy: `.../domain/customer/policy/`
-- Job/Step + reader **configuration**: `.../infrastructure/batch/config/CustomerImportJobConfig.java`, `CustomerCsvItemReaderConfig.java`, `CustomerImportAuditListenerConfig.java`
+- Job/Step + reader **configuration**: `.../infrastructure/config/batch/CustomerImportJobConfig.java`, `CustomerCsvItemReaderConfig.java`, `CustomerImportAuditListenerConfig.java`
 - Batch **adapters** + listeners: `.../infrastructure/adapter/batch/` (includes `CustomerImportAuditStepListener` for skip/process audit)
 - Oracle MERGE adapter: `.../infrastructure/adapter/persistence/OracleCustomerUpsertPortAdapter.java`
 - Import audit JDBC: `.../infrastructure/adapter/persistence/JdbcImportAuditPortAdapter.java`
@@ -318,7 +318,7 @@ src/test/java/
 │       ├── domain/customer/
 │       ├── infrastructure/adapter/batch/
 │       ├── infrastructure/adapter/persistence/
-│       ├── infrastructure/batch/config/
+│       ├── infrastructure/config/batch/
 │       ├── infrastructure/config/
 │       ├── infrastructure/diagnostics/
 │       └── presentation/api/BatchJobControllerTest.java
