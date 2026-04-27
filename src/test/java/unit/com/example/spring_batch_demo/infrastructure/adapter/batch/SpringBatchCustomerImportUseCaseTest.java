@@ -6,9 +6,12 @@ import com.example.spring_batch_demo.application.customer.dto.CustomerImportResu
 import com.example.spring_batch_demo.application.customer.dto.ImportAuditReport;
 import com.example.spring_batch_demo.application.customer.exceptions.ImportJobLaunchException;
 import com.example.spring_batch_demo.application.customer.exceptions.MissingInputFileException;
+import com.example.spring_batch_demo.application.customer.port.CustomerImportInputFileStagingPort;
+import com.example.spring_batch_demo.application.customer.port.CustomerImportInputFileValidator;
 import com.example.spring_batch_demo.application.customer.port.ImportAuditPort;
 import com.example.spring_batch_demo.domain.importaudit.ImportRejectionCategory;
 import com.example.spring_batch_demo.domain.importaudit.RejectedRow;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.ExitStatus;
@@ -35,8 +38,22 @@ class SpringBatchCustomerImportUseCaseTest {
     private final JobExplorer jobExplorer = mock(JobExplorer.class);
     private final Job job = mock(Job.class);
     private final ImportAuditPort importAuditPort = mock(ImportAuditPort.class);
+    private final CustomerImportInputFileValidator inputFileValidator = mock(CustomerImportInputFileValidator.class);
+    private final CustomerImportInputFileStagingPort inputFileStagingPort = mock(CustomerImportInputFileStagingPort.class);
     private final SpringBatchCustomerImportUseCase useCase =
-            new SpringBatchCustomerImportUseCase(jobLauncher, jobExplorer, job, importAuditPort);
+            new SpringBatchCustomerImportUseCase(
+                    jobLauncher,
+                    jobExplorer,
+                    job,
+                    importAuditPort,
+                    inputFileValidator,
+                    inputFileStagingPort
+            );
+
+    @BeforeEach
+    void stageInputFileByDefault() {
+        when(inputFileStagingPort.stageForImport(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
+    }
 
     @Test
     void launchImportRejectsNullInputFile() {
@@ -59,6 +76,8 @@ class SpringBatchCustomerImportUseCaseTest {
         Long id = useCase.launchImport("classpath:customers-01.csv");
 
         assertEquals(13L, id);
+        verify(inputFileStagingPort).stageForImport(eq("classpath:customers-01.csv"), any());
+        verify(inputFileValidator).validateAvailable("classpath:customers-01.csv");
     }
 
     @Test

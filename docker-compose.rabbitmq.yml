@@ -1,0 +1,11 @@
+# Optional RabbitMQ for dev profile (Phase 3). Start before `./mvnw spring-boot:run -Dspring-boot.run.profiles=dev`.
+# UI: http://localhost:15672  guest / guest
+services:
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest

@@ -1,54 +1,128 @@
 package com.example.spring_batch_demo.presentation.api;
 
 import java.util.List;
-import java.util.Map;
+import java.util.OptionalLong;
 
-import com.example.spring_batch_demo.application.customer.exceptions.ImportJobLaunchException;
-import com.example.spring_batch_demo.application.customer.exceptions.MissingInputFileException;
+import com.example.spring_batch_demo.application.customer.dto.CustomerImportEnqueueResponse;
 import com.example.spring_batch_demo.application.customer.dto.CustomerImportResult;
 import com.example.spring_batch_demo.application.customer.dto.ImportAuditReport;
+import com.example.spring_batch_demo.application.customer.exceptions.ImportCommandPublishException;
+import com.example.spring_batch_demo.application.customer.exceptions.ImportJobLaunchException;
+import com.example.spring_batch_demo.application.customer.exceptions.InvalidCorrelationIdException;
+import com.example.spring_batch_demo.application.customer.exceptions.InvalidInputFileResourceException;
+import com.example.spring_batch_demo.application.customer.exceptions.MissingInputFileException;
+import com.example.spring_batch_demo.application.customer.port.CustomerImportCommandPublisher;
+import com.example.spring_batch_demo.application.customer.port.CustomerImportInputFileValidator;
 import com.example.spring_batch_demo.application.customer.port.CustomerImportUseCase;
+import com.example.spring_batch_demo.application.customer.port.ImportLaunchCorrelationPort;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class BatchJobControllerTest {
 
+    private final CustomerImportCommandPublisher customerImportCommandPublisher = mock(CustomerImportCommandPublisher.class);
+    private final CustomerImportInputFileValidator inputFileValidator = mock(CustomerImportInputFileValidator.class);
     private final CustomerImportUseCase importUseCase = mock(CustomerImportUseCase.class);
-    private final BatchJobController controller = new BatchJobController(importUseCase);
+    private final ImportLaunchCorrelationPort importLaunchCorrelationPort = mock(ImportLaunchCorrelationPort.class);
+    private final BatchJobController controller = new BatchJobController(
+            customerImportCommandPublisher,
+            inputFileValidator,
+            importUseCase,
+            importLaunchCorrelationPort
+    );
 
     @Test
-    void importCustomersRejectsMissingInputFile() throws ImportJobLaunchException {
-        when(importUseCase.launchImport(null)).thenThrow(MissingInputFileException.forQueryParameter());
-
+    void importCustomersRejectsMissingInputFile() {
         assertThrows(MissingInputFileException.class, () -> controller.importCustomers(null));
-
-        verify(importUseCase).launchImport(null);
+        verifyNoInteractions(customerImportCommandPublisher);
+        verifyNoInteractions(inputFileValidator);
     }
 
     @Test
-    void importCustomersUsesProvidedInputFile() throws ImportJobLaunchException {
-        when(importUseCase.launchImport("classpath:customers-01.csv")).thenReturn(102L);
+    void importCustomersUsesProvidedInputFile() throws Exception {
+        when(customerImportCommandPublisher.publish(any())).thenReturn(
+                new CustomerImportEnqueueResponse("c1", "QUEUED", null)
+        );
 
-        ResponseEntity<Map<String, Object>> response = controller.importCustomers("classpath:customers-01.csv");
+        ResponseEntity<com.example.spring_batch_demo.application.customer.dto.CustomerImportEnqueueResponse> response =
+                controller.importCustomers("classpath:customers-01.csv");
 
         assertEquals(HttpStatus.ACCEPTED, response.getStatusCode());
-        verify(importUseCase).launchImport("classpath:customers-01.csv");
+        assertEquals("c1", response.getBody().correlationId());
+        assertEquals("QUEUED", response.getBody().status());
+        verify(inputFileValidator).validateAvailable("classpath:customers-01.csv");
+        verify(customerImportCommandPublisher).publish(any());
     }
 
     @Test
-    void importCustomersRejectsBlankInputFile() throws ImportJobLaunchException {
-        when(importUseCase.launchImport("   ")).thenThrow(MissingInputFileException.forQueryParameter());
-
+    void importCustomersRejectsBlankInputFile() {
         assertThrows(MissingInputFileException.class, () -> controller.importCustomers("   "));
+        verifyNoInteractions(customerImportCommandPublisher);
+        verifyNoInteractions(inputFileValidator);
+    }
 
-        verify(importUseCase).launchImport("   ");
+    @Test
+    void importCustomersRejectsUnavailableInputFileBeforePublishing() {
+        doThrow(new InvalidInputFileResourceException("missing"))
+                .when(inputFileValidator).validateAvailable(eq("file:/missing.csv"));
+
+        assertThrows(InvalidInputFileResourceException.class, () -> controller.importCustomers("file:/missing.csv"));
+        verifyNoInteractions(customerImportCommandPublisher);
+    }
+
+    @Test
+    void importCustomersPropagatesPublishFailure() throws Exception {
+        when(customerImportCommandPublisher.publish(any()))
+                .thenThrow(new ImportCommandPublishException("broker down", null));
+
+        assertThrows(ImportCommandPublishException.class, () -> controller.importCustomers("classpath:customers-01.csv"));
+    }
+
+    @Test
+    void importCustomersPropagatesLaunchFailureFromPublisher() throws Exception {
+        when(customerImportCommandPublisher.publish(any()))
+                .thenThrow(new ImportJobLaunchException("bad start", null));
+
+        assertThrows(ImportJobLaunchException.class, () -> controller.importCustomers("classpath:customers-01.csv"));
+    }
+
+    @Test
+    void getJobByCorrelationReturnsJobId() {
+        when(importLaunchCorrelationPort.findJobExecutionId("550e8400-e29b-41d4-a716-446655440000"))
+                .thenReturn(OptionalLong.of(42L));
+
+        ResponseEntity<java.util.Map<String, Long>> response =
+                controller.getJobExecutionIdByCorrelation("550e8400-e29b-41d4-a716-446655440000");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(42L, response.getBody().get("jobExecutionId").longValue());
+    }
+
+    @Test
+    void getJobByCorrelationReturnsNotFound() {
+        when(importLaunchCorrelationPort.findJobExecutionId("550e8400-e29b-41d4-a716-446655440001"))
+                .thenReturn(OptionalLong.empty());
+
+        ResponseEntity<java.util.Map<String, Long>> response =
+                controller.getJobExecutionIdByCorrelation("550e8400-e29b-41d4-a716-446655440001");
+
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+    }
+
+    @Test
+    void getJobByCorrelationRejectsInvalidUuid() {
+        assertThrows(InvalidCorrelationIdException.class, () -> controller.getJobExecutionIdByCorrelation("not-a-uuid"));
     }
 
     @Test
